@@ -1,0 +1,5 @@
+# ignore test data in strategy testing
+test_data
+
+# ignore pycache files
+*.pyc
