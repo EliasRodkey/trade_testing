@@ -94,20 +94,37 @@ class GridSearchOptimizer(object):
                 timer_start = default_timer()
                 
                 if i > 0:
-                    output_lines['Simulating'] = f"{i+1} / {total_simulations}"
-                    output_lines['Expected Time Remaining'] = f"""{
-                        round((n - (i + 1)) * self.time_df.total_time.mean(), 0)
-                    }s\n"""
-                    output_lines['Setup Time'] = f"{round(self.time_df.setup_time.mean(), 4)}s"
-                    output_lines['Calculation Time'] = f"{round(self.time_df.calculation_time.mean(), 4)}"
-                    output_lines['Transaction Time'] = f"{round(self.time_df.transaction_time.mean(), 4)}s"
-                    output_lines['Analysis Time'] = f"{round(self.time_df.finish_time.mean(), 4)}s"
-                    output_lines['Total Sim Time'] = f"{round(self.time_df.total_sim_time.mean(), 2)}s"
-                    output_lines['Recording Time'] = f"{round(self.time_df.record_results_time.mean(), 2)}s"
-                    output_lines['Total Time'] = f"{round(self.time_df.total_time.mean(), 2)}s"
-                    output_lines['Simulated Return'] = f"{round(100*np.average(returns), 2)}%"
-                    output_lines['Simulated Win Percent'] = f"{round(np.average(wins), 2)}%"
-                    output_lines['Number of Trades'] = f"{round(np.average(trades), 2)}"
+                    s = f"""
+                        Simulating {i+1} / {total_simulations}
+                        Expected Time Remaining : {round((n - (i + 1)) * self.time_df.total_time.mean(), 0)}s
+
+                        Setup Time : {round(self.time_df.setup_time.mean(), 4)}s
+                        Calculation Time : {round(self.time_df.calculation_time.mean(), 4)}s
+                        Transaction Time : {round(self.time_df.transaction_time.mean(), 4)}s
+                        Sim Time : {round(self.time_df.total_sim_time.mean(), 2)}s
+                        Analysis Time : {round(self.time_df.finish_time.mean(), 4)}s
+                        Recording Time : {round(self.time_df.record_results_time.mean(), 2)}s
+                        Total Time : {round(self.time_df.total_time.mean(), 2)}s
+
+                        Avg Simulated Return : {round(100*np.average(returns), 2)}%
+                        Avg Simulated Win Percent : {100*round(np.average(wins), 2)}%
+                        Avg Number of Trades : {round(np.average(trades), 2)}
+                    """
+                    print(s, end='\r')
+                    # output_lines['Simulating'] = f"{i+1} / {total_simulations}"
+                    # output_lines['Expected Time Remaining'] = f"""{
+                    #     round((n - (i + 1)) * self.time_df.total_time.mean(), 0)
+                    # }s\n"""
+                    # output_lines['Setup Time'] = f"{round(self.time_df.setup_time.mean(), 4)}s"
+                    # output_lines['Calculation Time'] = f"{round(self.time_df.calculation_time.mean(), 4)}"
+                    # output_lines['Transaction Time'] = f"{round(self.time_df.transaction_time.mean(), 4)}s"
+                    # output_lines['Analysis Time'] = f"{round(self.time_df.finish_time.mean(), 4)}s"
+                    # output_lines['Total Sim Time'] = f"{round(self.time_df.total_sim_time.mean(), 2)}s"
+                    # output_lines['Recording Time'] = f"{round(self.time_df.record_results_time.mean(), 2)}s"
+                    # output_lines['Total Time'] = f"{round(self.time_df.total_time.mean(), 2)}s"
+                    # output_lines['Simulated Return'] = f"{round(100*np.average(returns), 2)}%"
+                    # output_lines['Simulated Win Percent'] = f"{round(np.average(wins), 2)}%"
+                    # output_lines['Number of Trades'] = f"{round(np.average(trades), 2)}"
                 parameters = {n: param for n, param in zip(param_names, params)}
                 sim, results = self.simulate(*params)
                 if i == 0:

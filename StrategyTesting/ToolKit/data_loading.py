@@ -11,7 +11,8 @@ import pandas as pd
 from typing import Dict, List
 
 
-EOD_DATA_DIR = os.path.join("test_data", "eod")
+EOD_DATA_DIR = os.path.join("StrategyTesting", "test_data", "eod")
+SPY_PATH  = os.path.join("StrategyTesting", "test_data", "SPY.csv")
 
 def load_data_as_pd(symbol: str) -> pd.DataFrame:
     """Loads data from test_data\\eod stock with input symbol"""
@@ -22,7 +23,7 @@ def load_data_as_pd(symbol: str) -> pd.DataFrame:
 
 def load_SPY_data():
     """Loads data for SPY (S&P 500) in test_data"""
-    df = pd.read_csv("test_data\\SPY.csv")
+    df = pd.read_csv(SPY_PATH)
     df["date"] = pd.to_datetime(df["date"])
     df.set_index("date", inplace=True)
     return df
