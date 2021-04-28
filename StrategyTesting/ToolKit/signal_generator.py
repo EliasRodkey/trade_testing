@@ -1082,7 +1082,7 @@ class Signals(Indicators):
         signals = self.create_zero_crossing_signals(difference)
         return signals
 
-    def create_MOM_signals(self, series: pd.Series, n: int=14) -> pd.Series:
+    def create_momentum_signal(self, series: pd.Series, n: int=14) -> pd.Series:
         """
         Creates signals based on the momentum crossover principle
         if momentum > 0, price accelerating upwards == buy
@@ -1093,7 +1093,7 @@ class Signals(Indicators):
         signals.name = "Momentum Signals"
         return signals
     
-    def create_MA_signals(
+    def create_MA_signal(
         self, series: pd.Series, n: int=14,
         ma_type: str="simple_moving_average"
     ) -> pd.Series:
