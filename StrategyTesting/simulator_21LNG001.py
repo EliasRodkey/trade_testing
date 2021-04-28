@@ -298,7 +298,7 @@ class SimpleSimulator(object):
                                 + np.average(_buy_times) 
                                 + np.average(_record_times),
             "finish_time": [finish_time - record_cash_end],
-            "total_sim_time": [finish_time - iteration_start]
+            "internal_sim_time": [finish_time - iteration_start]
         })
 
 
@@ -315,8 +315,24 @@ class BoundSimulators():
 
         self.signal_func = signal_func
         self.pref_func = preference_func
-        self.signal_name = signal_func.__name__
-        self.pref_name = preference_func.__name__
+        self.signal_id = self._make_funciton_id(signal_func.__name__)
+        self.pref_id = self._make_funciton_id(preference_func.__name__)
+
+    @staticmethod
+    def _make_funciton_id(function_name: str) -> str:
+        """
+        Makes a unique string for each function used as signal / preference 
+        splits name on underscores and removes 'calculate' and 'create' keywords
+        concat first 5 letters of each word in funciton
+        """
+        listed = function_name.split("_")[1:]
+        _id = ""
+        for word in listed:
+            to_concat = 5
+            if len(word) < 5:
+                to_concat = len(word)
+            _id = _id + word[:to_concat]
+        return _id.upper()
 
     def simulate_lookback_only(self, signal_n: int, preference_n: int) -> pd.DataFrame:
         """
@@ -330,8 +346,10 @@ class BoundSimulators():
         calc_end = default_timer()
         simulator = SimpleSimulator(**self.sim_kwargs)
         simulator.simulate(self.prices, signal, preference)
-        simulator.params = (self.signal_name, self.pref_name)
+        simulator.params = (self.signal_id, self.pref_id)
+        sim_end_time = default_timer()
         simulator.time_data["calculation_time"] = calc_end - calc_start
+        simulator.time_data["mid_sim_time"] = sim_end_time - calc_end
 
         return simulator, simulator.portfolio_history.performance_metric_data
 

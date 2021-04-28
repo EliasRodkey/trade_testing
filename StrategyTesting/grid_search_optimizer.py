@@ -5,18 +5,20 @@
 # is called with a dicitonary of iterables which are tried in all combinations
 # by the optimizer which then returns data on the most successful parameters
 
+import os
+import sys
 import datetime
+from timeit import default_timer
 from ToolKit.signal_generator import Signals 
 from ToolKit.data_loading import load_eod_matrix, get_all_symbols
+from ToolKit.log_window import Ui_MainWindow
 import pandas as pd
 import numpy as np
-from collections import defaultdict, OrderedDict
-import inspect
+from collections import OrderedDict
 from itertools import product
-from timeit import default_timer
 from reprint import output
 from typing import Dict, Tuple, List, Callable, Iterable, Any, NewType, Mapping
-import os
+
 import matplotlib.pyplot as plt
 from matplotlib import cm 
 from mpl_toolkits.mplot3d import Axes3D 
@@ -60,6 +62,8 @@ class GridSearchOptimizer(object):
         self.simulate = simulation_function
         self._results_list: List[OptimizationResult] = list()
         self.time_df = pd.DataFrame()
+        # self.ui = Ui_MainWindow()
+        # self.ui.show_ui()
 
         self._optimization_finished = False
 
@@ -75,6 +79,7 @@ class GridSearchOptimizer(object):
 
     def optimize(self, **optimization_ranges: SimKwargs):
         assert optimization_ranges, 'Must provide non-empty parameters.'
+
         # Convert all iterables to lists
         param_ranges = {k: list(v) for k, v in optimization_ranges.items()}
         self.param_names = param_names = list(param_ranges.keys())
@@ -85,62 +90,60 @@ class GridSearchOptimizer(object):
         total_time_elapsed = 0
 
         print(f'Starting simulation ...')
-        print(f'Simulating: 1 / {total_simulations}', end='\r')
-        with output(output_type='dict', interval=1) as output_lines:
-            returns = []
-            wins = []
-            trades = []
-            for i, params in enumerate(product(*param_ranges.values())):
-                timer_start = default_timer()
-                
-                if i > 0:
-                    s = f"""
-                        Simulating {i+1} / {total_simulations}
-                        Expected Time Remaining : {round((n - (i + 1)) * self.time_df.total_time.mean(), 0)}s
+        returns = []
+        wins = []
+        trades = []
+        for i, params in enumerate(product(*param_ranges.values())):
+            timer_start = default_timer()
+            
+            if i > 0:
+                s = f"""
+    ____________________________________
+    |########     SIM LOG    ######## 
+    |                                 
+    |Simulating {i+1} / {total_simulations}...              
+    |Expected Time Remaining : {round((n - (i + 1)) * self.time_df.total_time.mean(), 0)}s   
+    |                                 
+    |Setup Time : {round(self.time_df.setup_time.mean(), 4)}s              
+    |Calculation Time : {round(self.time_df.calculation_time.mean(), 4)}s       
+    |Transaction Time : {round(self.time_df.transaction_time.mean(), 4)}s        
+    |Sim Iteration Time : {round(self.time_df.internal_sim_time.mean(), 2)}s          
+    |Sim Funciton Time : {round(self.time_df.mid_sim_time.mean(), 2)}s             
+    |Sim Optimization Time : {round(self.time_df.outside_sim_time.mean(), 2)}s       
+    |Analysis Time : {round(self.time_df.finish_time.mean(), 4)}s           
+    |Recording Time : {round(self.time_df.record_results_time.mean(), 4)}s         
+    |Total Time : {round(self.time_df.total_time.mean(), 2)}s 
+    |Elapsed Time : {round(self.time_df.total_time_elapsed.mean(), 2)}s              
+    |                                 
+    |Avg Simulated Return : {round(100*np.average(returns), 2)}%   
+    |Avg Simulated Win Percent : {100*round(np.average(wins), 2)}% 
+    |Avg Number of Trades : {round(np.average(trades), 2)}    
+    |___________________________________
+                """
+                print(s)
+            else:
+                print(f'Simulating: 1 / {total_simulations}...')
 
-                        Setup Time : {round(self.time_df.setup_time.mean(), 4)}s
-                        Calculation Time : {round(self.time_df.calculation_time.mean(), 4)}s
-                        Transaction Time : {round(self.time_df.transaction_time.mean(), 4)}s
-                        Sim Time : {round(self.time_df.total_sim_time.mean(), 2)}s
-                        Analysis Time : {round(self.time_df.finish_time.mean(), 4)}s
-                        Recording Time : {round(self.time_df.record_results_time.mean(), 2)}s
-                        Total Time : {round(self.time_df.total_time.mean(), 2)}s
+            print_time = default_timer()
+            parameters = {n: param for n, param in zip(param_names, params)}
+            params_time = default_timer()
+            sim, results = self.simulate(*params)
+            if i == 0:
+                self.sim = sim
+            timer_mid = default_timer()
+            self.add_results(parameters, results)
+            returns.append(results.percent_return.iloc[0])
+            wins.append(results.positive_trade_ratio.iloc[0])
+            trades.append(results.number_of_trades.iloc[0])
 
-                        Avg Simulated Return : {round(100*np.average(returns), 2)}%
-                        Avg Simulated Win Percent : {100*round(np.average(wins), 2)}%
-                        Avg Number of Trades : {round(np.average(trades), 2)}
-                    """
-                    print(s, end='\r')
-                    # output_lines['Simulating'] = f"{i+1} / {total_simulations}"
-                    # output_lines['Expected Time Remaining'] = f"""{
-                    #     round((n - (i + 1)) * self.time_df.total_time.mean(), 0)
-                    # }s\n"""
-                    # output_lines['Setup Time'] = f"{round(self.time_df.setup_time.mean(), 4)}s"
-                    # output_lines['Calculation Time'] = f"{round(self.time_df.calculation_time.mean(), 4)}"
-                    # output_lines['Transaction Time'] = f"{round(self.time_df.transaction_time.mean(), 4)}s"
-                    # output_lines['Analysis Time'] = f"{round(self.time_df.finish_time.mean(), 4)}s"
-                    # output_lines['Total Sim Time'] = f"{round(self.time_df.total_sim_time.mean(), 2)}s"
-                    # output_lines['Recording Time'] = f"{round(self.time_df.record_results_time.mean(), 2)}s"
-                    # output_lines['Total Time'] = f"{round(self.time_df.total_time.mean(), 2)}s"
-                    # output_lines['Simulated Return'] = f"{round(100*np.average(returns), 2)}%"
-                    # output_lines['Simulated Win Percent'] = f"{round(np.average(wins), 2)}%"
-                    # output_lines['Number of Trades'] = f"{round(np.average(trades), 2)}"
-                parameters = {n: param for n, param in zip(param_names, params)}
-                sim, results = self.simulate(*params)
-                if i == 0:
-                    self.sim = sim
-                timer_mid = default_timer()
-                self.add_results(parameters, results)
-                returns.append(results.percent_return.iloc[0])
-                wins.append(results.positive_trade_ratio.iloc[0])
-                trades.append(results.number_of_trades.iloc[0])
-
-                timer_end = default_timer()
-                total_time_elapsed += timer_end - timer_start 
-                sim.time_data["total_time"] = timer_end - timer_start
-                sim.time_data["total_time_elapsed"] = total_time_elapsed
-                sim.time_data["record_results_time"] = timer_end - timer_mid
-                self._add_to_time_df(sim.time_data)
+            timer_end = default_timer()
+            total_time_elapsed += timer_end - timer_start 
+            sim.time_data["print_time"] = print_time - timer_start
+            sim.time_data["outside_sim_time"] = timer_mid - params_time 
+            sim.time_data["record_results_time"] = timer_end - timer_mid
+            sim.time_data["total_time"] = timer_end - timer_start
+            sim.time_data["total_time_elapsed"] = total_time_elapsed
+            self._add_to_time_df(sim.time_data)
 
         print(f'Simulated {total_simulations} / {total_simulations} ...')
         print(f'Elapsed time: {total_time_elapsed:.0f}s')
@@ -281,18 +284,13 @@ class GridSearchOptimizer(object):
     
     def _make_id(self, sim_class) -> str:
         """generates unique identifier for bound simulator"""
-        args = list(sim_class.params)
-        for i, arg in enumerate(sim_class.params):
-            arg.replace(" ", "")
-            arg.replace("_", "")
-            if len(arg) > 6:
-                args[i] = arg[:6]
-        _params = "".join(args).upper()
-        _date = datetime.datetime.now().strftime("%d%m%Y")
+        signal, pref = list(sim_class.params)
+        _params = f"{signal}_{pref}"
+        _date = datetime.datetime.now().strftime("%d%m%y")
+        _kwarg = f"_MAXPOS{sim_class.max_active_positions}"
         count = 0
-        _kwarg = f"_MAXPOS{self.max_positions}"
         iterator = f"_{count}"
-        while os.path.exists(f"optimization_results\\{_params}_{_kwarg}_{_date}{iterator}.csv"):
+        while os.path.exists(f"StrategyTesting\\optimization_results\\{_params}_{_kwarg}_{_date}{iterator}.csv"):
             count += 1
             iterator = f"_{count}"
         return f"{_params}_{_kwarg}_{_date}{iterator}"
@@ -304,8 +302,7 @@ class GridSearchOptimizer(object):
     def save_results(self):
         import os
         # saves the results of the grid search optomization to a CSV file 
-        self.results.to_csv(f"optimization_results\\{self.ID}.csv")
-
+        self.results.to_csv(f"StrategyTesting\\optimization_results\\{self.ID}.csv")
 
 
 # Optimizer Usage
@@ -320,11 +317,11 @@ if __name__ == '__main__':
     )
     optimizer = GridSearchOptimizer(simulate.simulate_lookback_only)
     optimizer.optimize(
-        signal_n=range(10, 15, 1),
-        performance_n=range(20, 30, 2),
+        signal_n=range(10, 15, 5),
+        performance_n=range(20, 30, 5),
     )
     optimizer.save_results()
-    optimizer.print_summary()
+    # optimizer.print_summary()
     # print(optimizer.get_best('excess_cagr'))
     # optimizer.save_results() 
     # optimizer.plot('excess_cagr')
