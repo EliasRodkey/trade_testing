@@ -353,6 +353,18 @@ class PortfolioHistory(object):
         return self.metrics.calculate_sharpe_ratio(self.equity_series)
 
     @property
+    def sortino_ratio(self) -> float:
+        return self.metrics.calculate_sortino_ratio(self.equity_series)
+
+    @property
+    def calmar_ratio(self) -> float:
+        return self.metrics.calculate_calmar_ratio(self.equity_series)
+    
+    @property
+    def pure_profit_score_ratio(self) -> float:
+        return self.metrics.calculate_pure_profit_score(self.equity_series)
+
+    @property
     def spy_cagr(self) -> float:
         return self.metrics.calculate_cagr(self.spy['close'])
     
@@ -377,6 +389,13 @@ class PortfolioHistory(object):
     @property
     def beta(self) -> float:
         return self.metrics.calculate_beta(
+            self.log_return_series, 
+            self.spy_log_returns
+        )
+    
+    @property
+    def r_squared(self) -> float:
+        return self.metrics.calculate_r_squared(
             self.log_return_series, 
             self.spy_log_returns
         )
@@ -479,12 +498,18 @@ class PortfolioHistory(object):
     _PERFORMANCE_METRICS_PROPS = [
         'percent_return',
         'spy_percent_return',
+        'spy_cagr',
         'cagr',
+        'excess_cagr',
         'volatility',
         'sharpe_ratio',
-        'spy_cagr',
-        'excess_cagr',
+        'sortino_ratio',
+        'calmar_ratio',
+        'r_squared',
+        'pure_profit_score',
         'jensens_alpha',
+        'alpha',
+        'beta',
         'dollar_max_drawdown',
         'percent_max_drawdown',
         'log_max_drawdown_ratio',
@@ -498,7 +523,7 @@ class PortfolioHistory(object):
         'positive_trade_ratio',
         'average_winning_trade_return',
         'average_losing_trade_return',
-        'average_percent_return',
+        'average_return_per_trade',
         'final_cash',
         'final_equity'
     ]

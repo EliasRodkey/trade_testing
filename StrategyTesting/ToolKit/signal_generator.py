@@ -224,17 +224,11 @@ class Metrics():
         log_return = np.log(series.iloc[-1]) - np.log(series.iloc[0])
         return log_return - log_drawdown
 
-    def calculate_calmar_ratio(self, series: pd.Series, years_past: int=3) -> float:
+    def calculate_calmar_ratio(self, series: pd.Series) -> float:
         """
         Return the percent max drawdown ratio over the past three years using
         CAGR as the numerator, otherwise known as the Calmar Ratio
         """
-
-        # Filter series on past three years
-        last_date = series.index[-1]
-        three_years_ago = last_date - pd.Timedelta(days=years_past*365.25)
-        series = series[series.index > three_years_ago]
-
         # Compute annualized percent max drawdown ratio
         percent_drawdown = self.calculate_max_drawdown(series, method='percent')
         cagr = self.calculate_cagr(series)
@@ -306,6 +300,16 @@ class Metrics():
         versus a benchmark
         """
         return self._get_linreg(return_series, benchmark_return_series).intercept
+    
+    def calculate_r_squared(
+        self, return_series: pd.Series,
+        benchmark_return_series: pd.Series
+    ) -> float:
+        """
+        Calculates the r^2 of a portfolio or stock return series
+        versus a benchmark
+        """
+        return self._get_linreg(return_series, benchmark_return_series).r ** 2
 
 
 # Indicators - creates class that calculates various 

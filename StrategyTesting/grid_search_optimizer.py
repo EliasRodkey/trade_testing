@@ -173,21 +173,6 @@ class GridSearchOptimizer(object):
         print('Summary statistics')
         print(df[metric_names].describe().T)
 
-    def get_best(self, metric_name: str) -> pd.DataFrame:
-        """
-        Sort the results by a specific performance metric
-        """
-        self._assert_finished()
-
-        results = self.results
-        param_names = self.param_names
-        metric_names = self.metric_names
-
-        assert metric_name in metric_names, 'Not a performance metric'
-        partial_df = self.results[param_names+[metric_name]]
-
-        return partial_df.sort_values(metric_name, ascending=False)
-
     def plot_1d_hist(self, x, show=True):
         self.results.hist(x)
         if show:
@@ -329,65 +314,75 @@ class GridSearchOptimizer(object):
     # optimizer.plot('bollinger_n', 'sharpe_n', 'excess_cagr')
 
 
-class OptimizationAnalysis():
+class SimsetCompiler():
     def __init__(self):
+        super().__init__()
         self.results_path = os.path.join("StrategyTesting", "optimization_results")
-        self.filename_df = self._load_filenames_df()
     
-    def _load_filenames_df(self):
-        _res = {
-            "signal" : [],
-            "preference" : [],
-            "max_positions" : [],
-            "date" : [],
-            "iteration" : [],
-            "id" : [],
-            "filename" : []
-        }
-        for filename in os.listdir(self.results_path):
-            _id = filename.replace(".csv", "")
-            filename_list = _id.split("_")
-            _res["signal"].append(filename_list[0])
-            _res["preference"].append(filename_list[1])
-            max_pos = int(filename_list[2].replace("MAXPOS", ""))
-            _res["max_positions"].append(max_pos)
-            date = datetime.datetime.strptime(filename_list[3], "%y%m%d")
-            _res["date"].append(date)
-            _res["iteration"].append(int(filename_list[4]))
-            _res["id"].append(_id)
-            _res["filename"].append(filename)
-        return(pd.DataFrame(_res))
+    @property
+    def simset_ids(self):
+        # returns all of the sim set ids in a tuple
+        filenames = os.listdir(self.results_path)
+        _ids = []
+        for filename in filenames:
+            if filename != "compiled_results.csv":
+                _id = filename.replace(".csv", "")
+                _ids.append(_id)
+        return tuple(_ids)
     
-    def _results_by_signal(self, signal: str) -> pd.DataFrame:
-        # searches the optimization results folder and filter by a given signal name
-        # list of signal names given as class attribute
-        _res = self.filename_df[self.filename_df.signal == signal]
-        return _res
+    @property
+    def simset_filenames(self):
+        # returns all of the sim set ids in a tuple
+        filenames = os.listdir(self.results_path)
+        _ids = []
+        for filename in filenames:
+            if filename != "compiled_results.csv":
+                _ids.append(filename)
+        return tuple(_ids)
     
-    def _results_by_preference(self, preference: str) -> pd.DataFrame:
-        # searches the optimization results folder and filter by a given preference name
-        # list of preference names given as class attribute
-        _res = self.filename_df[self.filename_df.preference == preference]
-        return _res
+    def load_simset_by_filename(self, simset_path: str):
+        # loads the results in a simulation set from
+        # the simulations filename
+        return pd.read_csv(os.path.join(self.results_path, simset_path))
     
-    def _results_by_max_positions(self, max_positions: str) -> pd.DataFrame:
-        # searches the optimization results folder and filter by a given number of max positions
-        _res = self.filename_df[self.filename_df.max_positions == max_positions]
-        return _res
-    
-    def _results_by_date(self, start_date: str, end_date: str) -> pd.DataFrame:
-        # searches the optimization results folder and filter by a given signal name
-        # list of signal names given as class attribute
-        _res = self.filename_df[self.filename_df.signal == signal]
-        return _res
-    
-    def load_result(self, file_path: str) -> pd.DataFrame:
-        pass
-            
-            
+    def load_simset_by_id(self, simset_id: str):
+            # loads the results in a simulation set from
+            # the simulations ID
+            return pd.read_csv(os.path.join(self.results_path, f"{simset_id}.csv"))
+
+    class Simset():
+        # subclass for analyzing, compiling, and rating 
+        # an individual simset
+        def __init__(self, parent, simset_id):
+            self.id = simset_id
+            self.df = parent.load_simset_by_id(simset_id)
+            self.length = self.df.shape[0]
+
+        @property
+        def metrics(self):
+            # lists the columns in the simset df
+            _metrics = list(self.df.columns)
+            _metrics.remove("Unnamed: 0")
+            return _metrics
+        
+        @property
+        def summary(self):
+            return self.df.describe()
+        
+        def metric_summary(self, metric: str):
+            # returns basic summary of data of a single metric
+            # from simset data
+            assert metric in self.metrics, f"Metric porvided not assosiated with {self.id}"
+            return self.df[metric].describe()
+        
+        
+    def test(self):
+        subclass = self.Simset(self, self.simset_ids[0])
+        for metric in subclass.metrics:
+            print(subclass.metric_summary(metric))
 
 
 # OptimizationAnalysis usage
 if __name__ == "__main__":
-    results = OptimizationAnalysis()
-    print(results.load_results_by_signal("BOLLIBANDSIGNA"))
+    comp = SimsetCompiler()
+    comp.test()
