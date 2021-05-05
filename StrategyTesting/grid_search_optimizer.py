@@ -286,8 +286,8 @@ class GridSearchOptimizer(object):
         """generates unique identifier for bound simulator"""
         signal, pref = list(sim_class.params)
         _params = f"{signal}_{pref}"
-        _date = datetime.datetime.now().strftime("%d%m%y")
-        _kwarg = f"_MAXPOS{sim_class.max_active_positions}"
+        _date = datetime.datetime.now().strftime("%y%m%d")
+        _kwarg = f"MAXPOS{sim_class.max_active_positions}"
         count = 0
         iterator = f"_{count}"
         while os.path.exists(f"StrategyTesting\\optimization_results\\{_params}_{_kwarg}_{_date}{iterator}.csv"):
@@ -306,21 +306,21 @@ class GridSearchOptimizer(object):
 
 
 # Optimizer Usage
-if __name__ == '__main__':
-    # GridSearOptomizer example usage
-    from simulator_21LNG001 import BoundSimulators
+# if __name__ == '__main__':
+#     # GridSearOptomizer example usage
+#     from simulator_21LNG001 import BoundSimulators
 
-    simulate =  BoundSimulators(
-        Signals().create_bollinger_band_signal,
-        Signals().calculate_rolling_sharpe_ratio,
-        initial_cash=10000, max_active_positions=5
-    )
-    optimizer = GridSearchOptimizer(simulate.simulate_lookback_only)
-    optimizer.optimize(
-        signal_n=range(10, 15, 5),
-        performance_n=range(20, 30, 5),
-    )
-    optimizer.save_results()
+#     simulate =  BoundSimulators(
+#         Signals().create_bollinger_band_signal,
+#         Signals().calculate_rolling_sharpe_ratio,
+#         initial_cash=10000, max_active_positions=5
+#     )
+#     optimizer = GridSearchOptimizer(simulate.simulate_lookback_only)
+#     optimizer.optimize(
+#         signal_n=range(10, 15, 5),
+#         performance_n=range(20, 30, 5),
+#     )
+#     optimizer.save_results()
     # optimizer.print_summary()
     # print(optimizer.get_best('excess_cagr'))
     # optimizer.save_results() 
@@ -331,4 +331,63 @@ if __name__ == '__main__':
 
 class OptimizationAnalysis():
     def __init__(self):
+        self.results_path = os.path.join("StrategyTesting", "optimization_results")
+        self.filename_df = self._load_filenames_df()
+    
+    def _load_filenames_df(self):
+        _res = {
+            "signal" : [],
+            "preference" : [],
+            "max_positions" : [],
+            "date" : [],
+            "iteration" : [],
+            "id" : [],
+            "filename" : []
+        }
+        for filename in os.listdir(self.results_path):
+            _id = filename.replace(".csv", "")
+            filename_list = _id.split("_")
+            _res["signal"].append(filename_list[0])
+            _res["preference"].append(filename_list[1])
+            max_pos = int(filename_list[2].replace("MAXPOS", ""))
+            _res["max_positions"].append(max_pos)
+            date = datetime.datetime.strptime(filename_list[3], "%y%m%d")
+            _res["date"].append(date)
+            _res["iteration"].append(int(filename_list[4]))
+            _res["id"].append(_id)
+            _res["filename"].append(filename)
+        return(pd.DataFrame(_res))
+    
+    def _results_by_signal(self, signal: str) -> pd.DataFrame:
+        # searches the optimization results folder and filter by a given signal name
+        # list of signal names given as class attribute
+        _res = self.filename_df[self.filename_df.signal == signal]
+        return _res
+    
+    def _results_by_preference(self, preference: str) -> pd.DataFrame:
+        # searches the optimization results folder and filter by a given preference name
+        # list of preference names given as class attribute
+        _res = self.filename_df[self.filename_df.preference == preference]
+        return _res
+    
+    def _results_by_max_positions(self, max_positions: str) -> pd.DataFrame:
+        # searches the optimization results folder and filter by a given number of max positions
+        _res = self.filename_df[self.filename_df.max_positions == max_positions]
+        return _res
+    
+    def _results_by_date(self, start_date: str, end_date: str) -> pd.DataFrame:
+        # searches the optimization results folder and filter by a given signal name
+        # list of signal names given as class attribute
+        _res = self.filename_df[self.filename_df.signal == signal]
+        return _res
+    
+    def load_result(self, file_path: str) -> pd.DataFrame:
         pass
+            
+            
+
+
+# OptimizationAnalysis usage
+if __name__ == "__main__":
+    results = OptimizationAnalysis()
+    print(results.load_results_by_signal("BOLLIBANDSIGNA"))
