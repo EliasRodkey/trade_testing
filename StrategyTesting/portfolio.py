@@ -10,6 +10,7 @@ from typing import Dict, NewType, Any, List, Set
 from collections import OrderedDict, defaultdict
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 from ToolKit.signal_generator import Metrics
 from ToolKit.data_loading import load_SPY_data, load_data_as_pd
 
@@ -361,7 +362,7 @@ class PortfolioHistory(object):
         return self.metrics.calculate_calmar_ratio(self.equity_series)
     
     @property
-    def pure_profit_score_ratio(self) -> float:
+    def pure_profit_score(self) -> float:
         return self.metrics.calculate_pure_profit_score(self.equity_series)
 
     @property
@@ -492,9 +493,47 @@ class PortfolioHistory(object):
         return self.trade_summary_df.value_change.mean()
 
     @property
-    def average_percent_return(self) -> float:
+    def average_return_per_trade(self) -> float:
         return self.trade_summary_df.percent_return.mean()
     
+    @property
+    def average_return_per_day(self) -> float:
+        return self.log_return_series.mean()
+    
+    @property
+    def A_score(self) -> float:
+        # A score or alpha score: 10(alpha + 0.005) / 0.01
+        # essentially just takes small value snd stretches it roughly
+        # from 1-10
+        return 10 * (self.alpha + 0.005) / 0.01
+
+    @property
+    def W_score(self) -> float:
+        # W score or win score: log10(avg_win_return/avg_lose_return)
+        if self.average_losing_trade_return == 0:
+            return 0
+        else:
+            return np.log10(self.average_winning_trade_return/(abs(self.average_losing_trade_return)**2))
+    
+    @property
+    def P_score(self) -> float:
+        # P score or profit score: 100*CAGR*(win_ratio + r^2) / 2 
+        # averages the percent win rate and r^2 (linearity) and penalizes
+        # CAGR accordingly. only score term that can be negative
+        return 100 * self.cagr * ((self.positive_trade_ratio + self.r_squared) / 2)
+
+    @property
+    def V_score(self) -> float:
+        # V score or volatility score: (beta^2 + max_drawdown_% * annualized_volatility) * 10
+        # attempt at a consolidated volatility score (higher is more volatile)
+        return (self.beta**2 + (self.percent_max_drawdown*self.volatility)) * 10
+
+    @property
+    def edge_score(self) -> float:
+        # edge score: (A_score+2W_score+P_score)^2/V_score
+        # consolidates the other * scores to give overall portfolio performance at a glance 
+        return (2*self.W_score + self.A_score + self.P_score)**2 / self.V_score
+
     _PERFORMANCE_METRICS_PROPS = [
         'percent_return',
         'spy_percent_return',
@@ -524,8 +563,13 @@ class PortfolioHistory(object):
         'average_winning_trade_return',
         'average_losing_trade_return',
         'average_return_per_trade',
-        'final_cash',
-        'final_equity'
+        'average_return_per_day',
+        'final_equity',
+        'A_score',
+        'W_score',
+        'P_score',
+        'V_score',
+        'edge_score'
     ]
 
     PerformancePayload = NewType('PerformancePayload', Dict[str, float])

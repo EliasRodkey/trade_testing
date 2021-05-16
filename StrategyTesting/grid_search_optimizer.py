@@ -31,7 +31,7 @@ SimKwargs = NewType('Kwargs', Mapping[str, Iterable[Any]])
 class OptimizationResult(object):
     """Simple container class for optimization data"""
 
-    def __init__(self, parameters: Dict[str, int], performance: pd.DataFrame):
+    def __init__(self, parameters: Dict[str, int], performance: pd.DataFrame, metadata: Dict):
 
         # Make sure no collisions between performance metrics and params
         assert len(parameters.keys() & performance.keys()) == 0, \
@@ -39,6 +39,7 @@ class OptimizationResult(object):
 
         self.parameters = self.as_pd(parameters)
         self.performance = performance
+        self.metadata = self.as_pd(metadata)
 
     @staticmethod
     def as_pd(params: Dict[str, int]) -> pd.DataFrame:
@@ -47,7 +48,7 @@ class OptimizationResult(object):
     @property
     def combined(self) -> Dict[str, float]:
         """Combines the dictionaries after we are sure of no collisions"""
-        return pd.concat([self.parameters, self.performance], axis=1)
+        return pd.concat([self.metadata, self.parameters, self.performance], axis=1)
     
 
 class GridSearchOptimizer(object):
@@ -67,8 +68,8 @@ class GridSearchOptimizer(object):
 
         self._optimization_finished = False
 
-    def add_results(self, parameters: Dict[str, int], performance: pd.DataFrame):
-        _results = OptimizationResult(parameters, performance)
+    def add_results(self, parameters: Dict[str, int], performance: pd.DataFrame, metadata: Dict):
+        _results = OptimizationResult(parameters, performance, metadata)
         self._results_list.append(_results.combined)
     
     def _add_to_time_df(self, times_to_add: pd.DataFrame):
@@ -100,7 +101,8 @@ class GridSearchOptimizer(object):
                 s = f"""
     ____________________________________
     |########     SIM LOG    ######## 
-    |                                 
+    |   {self.ID}  
+    |                                   
     |Simulating {i+1} / {total_simulations}...              
     |Expected Time Remaining : {round((n - (i + 1)) * self.time_df.total_time.mean(), 0)}s   
     |                                 
@@ -130,8 +132,10 @@ class GridSearchOptimizer(object):
             sim, results = self.simulate(*params)
             if i == 0:
                 self.sim = sim
+                self.ID
             timer_mid = default_timer()
-            self.add_results(parameters, results)
+            self.make_metadata_dict(self.sim)
+            self.add_results(parameters, results, self._metadata)
             returns.append(results.percent_return.iloc[0])
             wins.append(results.positive_trade_ratio.iloc[0])
             trades.append(results.number_of_trades.iloc[0])
@@ -267,18 +271,32 @@ class GridSearchOptimizer(object):
         else:
             raise ValueError('Must pass between one and three column names.')
     
+    def make_metadata_dict(self, sim_class):
+        # Creates a dictionary with all of the meta information about the optimization
+        # this information is condensed in the simulation ID but is also included
+        # in the results to easily reference simulation types etc
+        signal, pref = list(sim_class.params)
+        _dict = {
+            "id" : self.ID,
+            "signal" : signal,
+            "preference" : pref,
+            "max_positions" : sim_class.max_active_positions,
+            "date" : datetime.datetime.now().strftime("%y%m%d")
+        }
+        self._metadata = _dict
+
     def _make_id(self, sim_class) -> str:
         """generates unique identifier for bound simulator"""
         signal, pref = list(sim_class.params)
         _params = f"{signal}_{pref}"
         _date = datetime.datetime.now().strftime("%y%m%d")
-        _kwarg = f"MAXPOS{sim_class.max_active_positions}"
+        _maxpos = f"MAXPOS{sim_class.max_active_positions}"
         count = 0
         iterator = f"_{count}"
-        while os.path.exists(f"StrategyTesting\\optimization_results\\{_params}_{_kwarg}_{_date}{iterator}.csv"):
+        while os.path.exists(f"StrategyTesting\\optimization_results\\{_params}_{_maxpos}_{_date}{iterator}.csv"):
             count += 1
             iterator = f"_{count}"
-        return f"{_params}_{_kwarg}_{_date}{iterator}"
+        return f"{_params}_{_maxpos}_{_date}{iterator}"
 
     @property
     def ID(self) -> str:

@@ -4,7 +4,6 @@
 from ToolKit.data_loading import load_SPY_data, load_data_as_pd
 import pandas as pd
 import numpy as np
-import scipy.stats as stats
 from typing import Dict, Any, Callable
 from sklearn.linear_model import LinearRegression
 
@@ -278,8 +277,11 @@ class Metrics():
         return_series: pd.Series,
         benchmark_return_series: pd.Series
     ) -> float:
-        mask = ~np.isnan(return_series) & ~np.isnan(benchmark_return_series)
-        return stats.linregress(benchmark_return_series[mask], return_series[mask])
+        df = pd.concat([return_series, benchmark_return_series], sort=True, axis=1)
+        df = df.dropna()
+        clean_returns: pd.Series = df[return_series.name]
+        clean_benchmarks = pd.DataFrame(df[benchmark_return_series.name])
+        return LinearRegression().fit(clean_benchmarks, y=clean_returns)
 
     def calculate_beta(
         self, return_series: pd.Series,
@@ -289,7 +291,7 @@ class Metrics():
         Calculates the beta of a portfolio or stock return series
         versus a benchmark
         """
-        return self._get_linreg(return_series, benchmark_return_series).slope
+        return self._get_linreg(return_series, benchmark_return_series).coef_[0]
     
     def calculate_alpha(
         self, return_series: pd.Series,
@@ -299,7 +301,7 @@ class Metrics():
         Calculates the alpha of a portfolio or stock return series
         versus a benchmark
         """
-        return self._get_linreg(return_series, benchmark_return_series).intercept
+        return self._get_linreg(return_series, benchmark_return_series).intercept_
     
     def calculate_r_squared(
         self, return_series: pd.Series,
@@ -309,7 +311,10 @@ class Metrics():
         Calculates the r^2 of a portfolio or stock return series
         versus a benchmark
         """
-        return self._get_linreg(return_series, benchmark_return_series).r ** 2
+        reshaped_return = np.arange(0, return_series.shape[0]).reshape(-1, 1)
+        reshaped_bench = np.arange(0, benchmark_return_series.shape[0]).reshape(-1, 1)
+        reg = self._get_linreg(return_series, benchmark_return_series)
+        return reg.score(reshaped_return, reshaped_bench)
 
 
 # Indicators - creates class that calculates various 
@@ -837,7 +842,7 @@ class Indicators(Metrics):
     
     def calculate_aroon_oscillator(self, series: pd.Series, n: int=25) -> pd.Series:
         """
-        Calculates the aroon oscilator ( the difference between the aroon up and aroon down)
+        Calculates the aroon oscilator (the difference between the aroon up and aroon down)
         """
         aroon_up = self.calculate_aroon_up(series, n)
         aroon_down = self.calculate_aroon_down(series, n)
@@ -1164,7 +1169,7 @@ class Signals(Indicators):
         """
         # Calculate the macd and get the signs of the values.
         macd = self.calculate_macd_oscillator(series, n1, n2)
-        macd_signals = self.create_zero_crossing_signal(macd)
+        macd_signals = self.create_zero_crossing_signals(macd)
         macd_signals.name = "MACD Signals"
         return macd
 
