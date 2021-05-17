@@ -302,10 +302,46 @@ class GridSearchOptimizer(object):
     def ID(self) -> str:
         return self._make_id(self.sim)
 
+    @property
+    def winning_sim_ratio(self) -> int:
+        # returns the ratio of winning (beating the market return) simualtions
+        # as a percentage
+        simset = self.results
+        filt = simset["percent_return"] > simset["spy_percent_return"]
+        number_winning = simset[filt].shape[0]
+        ratio = number_winning / simset.shape[0]
+        return ratio
+
+    def compile_simset(self) -> pd.DataFrame:
+        # returns the mean metrics along with information about how many sets beat
+        # the spy returns
+        meta = self.results.describe()
+        meta.drop(columns=["signal_n", "preference_n"], inplace=True)
+        compiled = meta.loc["mean"]
+        compiled["edge_score_stdev"] = self.results["edge_score"].std()
+        compiled["simset_size"] = self.results.shape[0]
+        compiled["percent_winning_sims"] = self.winning_sim_ratio
+        compiled["id"] = self.ID
+        return compiled.to_frame().T
+
+    @property
+    def compiled(self) -> pd.DataFrame:
+        return self.compile_simset()        
+
+    def add_to_compiled_results(self):
+        # adds compilation of results to "compiled_results" file
+        compiled_results_path = os.path.join("StrategyTesting", "compiled_results.csv")
+        try:
+            old_results = pd.read_csv(compiled_results_path)
+            new_results = pd.concat([old_results, self.compiled], axis=0).reset_index().drop(columns=["index"])
+            new_results.to_csv(compiled_results_path)
+        except:
+            self.compiled.to_csv(compiled_results_path)
     def save_results(self):
-        import os
         # saves the results of the grid search optomization to a CSV file 
-        self.results.to_csv(f"StrategyTesting\\optimization_results\\{self.ID}.csv")
+        self.add_to_compiled_results()
+        simset_path = os.path.join("StrategyTesting", "optimization_results", f"{self.ID}.csv")
+        self.results.to_csv(simset_path)
 
 
 # Optimizer Usage
