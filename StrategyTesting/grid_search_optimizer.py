@@ -333,10 +333,13 @@ class GridSearchOptimizer(object):
         compiled_results_path = os.path.join("StrategyTesting", "compiled_results.csv")
         try:
             old_results = pd.read_csv(compiled_results_path)
-            new_results = pd.concat([old_results, self.compiled], axis=0).reset_index().drop(columns=["index"])
+            new_results = pd.concat(
+                [old_results, self.compiled], axis=0
+            ).reset_index().drop(columns=["index", "Unnamed: 0"])
             new_results.to_csv(compiled_results_path)
         except:
             self.compiled.to_csv(compiled_results_path)
+
     def save_results(self):
         # saves the results of the grid search optomization to a CSV file 
         self.add_to_compiled_results()

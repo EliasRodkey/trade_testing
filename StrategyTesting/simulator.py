@@ -306,7 +306,7 @@ class BoundSimulators():
     def __init__(
         self, signal_func: Callable, 
         preference_func: Callable,
-         **sim_kwargs
+        **sim_kwargs
     ):
         symbols = get_all_symbols()
         self.prices = load_eod_matrix(symbols)
@@ -342,6 +342,50 @@ class BoundSimulators():
         """
         calc_start = default_timer()
         signal = self.prices.apply(self.signal_func, args=(signal_n,), axis=0)
+        preference = self.prices.apply(self.pref_func, args=(preference_n,), axis=0)
+        calc_end = default_timer()
+        simulator = SimpleSimulator(**self.sim_kwargs)
+        simulator.simulate(self.prices, signal, preference)
+        simulator.params = (self.signal_id, self.pref_id)
+        sim_end_time = default_timer()
+        simulator.time_data["calculation_time"] = calc_end - calc_start
+        simulator.time_data["mid_sim_time"] = sim_end_time - calc_end
+
+        return simulator, simulator.portfolio_history.performance_metric_data
+
+    def simulate_single_ma_lookback(
+        self, signal_n: int, preference_n: int
+    ) -> pd.DataFrame:
+        """
+        Simulation that takes 1 signal and 1 preference and the only editable 
+        parameters are the lookback window for the buy signal and transaction
+        preference and the type of moving average signal 
+        """
+        calc_start = default_timer()
+        signal = self.prices.apply(self.signal_func, args=(signal_n,), ma_type=self.ma_type, axis=0)
+        preference = self.prices.apply(self.pref_func, args=(preference_n,), axis=0)
+        calc_end = default_timer()
+        simulator = SimpleSimulator(**self.sim_kwargs)
+        simulator.simulate(self.prices, signal, preference)
+        simulator.params = (self.signal_id, self.pref_id)
+        sim_end_time = default_timer()
+        simulator.time_data["calculation_time"] = calc_end - calc_start
+        simulator.time_data["mid_sim_time"] = sim_end_time - calc_end
+
+        return simulator, simulator.portfolio_history.performance_metric_data
+    
+    def simulate_dual_lookback(
+        self, signal_n1: int, signal_n2: int, preference_n: int
+    ) -> pd.DataFrame:
+        """
+        Simulation that takes 1 signal and 1 preference and the only editable 
+        parameters are the lookback window for the buy signal and transaction
+        preference and the type of moving average signal 
+        """
+        if signal_n2 < signal_n1:
+            return None, None
+        calc_start = default_timer()
+        signal = self.prices.apply(self.signal_func, args=(signal_n1, signal_n2), axis=0)
         preference = self.prices.apply(self.pref_func, args=(preference_n,), axis=0)
         calc_end = default_timer()
         simulator = SimpleSimulator(**self.sim_kwargs)

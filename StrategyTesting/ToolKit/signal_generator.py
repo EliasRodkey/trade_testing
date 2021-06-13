@@ -1,7 +1,5 @@
 #!python3
-
-
-from ToolKit.data_loading import load_SPY_data, load_data_as_pd
+import os
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, Callable
@@ -1091,7 +1089,7 @@ class Signals(Indicators):
         signals = self.create_zero_crossing_signals(difference)
         return signals
 
-    def create_momentum_signal(self, series: pd.Series, n: int=14) -> pd.Series:
+    def create_momentum_signals(self, series: pd.Series, n: int=14) -> pd.Series:
         """
         Creates signals based on the momentum crossover principle
         if momentum > 0, price accelerating upwards == buy
@@ -1102,7 +1100,7 @@ class Signals(Indicators):
         signals.name = "Momentum Signals"
         return signals
     
-    def create_MA_signal(
+    def create_MA_signals(
         self, series: pd.Series, n: int=14,
         ma_type: str="simple_moving_average"
     ) -> pd.Series:
@@ -1161,7 +1159,7 @@ class Signals(Indicators):
     # midpoint (MID)
     # on-balance volume (OBV)
 
-    def create_macd_signal(self, series: pd.Series, n1: int=5, n2: int=34) -> pd.Series:
+    def create_macd_signals(self, series: pd.Series, n1: int=5, n2: int=34) -> pd.Series:
         """ 
         Create a momentum-based signal based on the MACD crossover principle. 
         Generate a buy signal when the MACD cross above zero, and a sell signal when
@@ -1171,9 +1169,9 @@ class Signals(Indicators):
         macd = self.calculate_macd_oscillator(series, n1, n2)
         macd_signals = self.create_zero_crossing_signals(macd)
         macd_signals.name = "MACD Signals"
-        return macd
+        return macd_signals
 
-    def create_bollinger_band_signal(
+    def create_bollinger_band_signals(
         self, series: pd.Series, 
         n: int=20
     ) -> pd.Series:
@@ -1188,12 +1186,21 @@ class Signals(Indicators):
         boll = (1*buy - 1*sell)
         boll.name = "Bollinger Band Signals"
         return boll
+    
+    @staticmethod
+    def show_indicator(indicator_series: pd.Series, signal_series: pd.Series):
+        """Uses pyplot to show a simple graph of the indicator"""
+        import matplotlib.pyplot as plt
+        plt.plot(indicator_series)
+        plt.plot(signal_series)
+        plt.show()
 
 
 # signals testing
 if __name__ == "__main__":
-    import matplotlib as plt
+    import pprint
+    from data_loading import load_SPY_data, load_data_as_pd
     SPY = load_SPY_data()["close"]
     AWU = load_data_as_pd("AWU")["close"]
     signals = Signals()
-    print(list(signals.create_bollinger_band_signal(AWU, n=5)))
+    signals.show_indicator(signals.calculate_macd_oscillator(AWU, n1=14, n2=56), signals.create_macd_signals(AWU, n1=14, n2=56))
