@@ -1,7 +1,7 @@
 from typing import Tuple, List, Dict, Callable, Iterable
 import pandas as pd
 import numpy as np
-from timeit import default_timer
+from time import perf_counter
 from portfolio import PortfolioHistory, Position, Symbol
 from ToolKit.data_loading import concatenate_metrics, get_all_symbols, load_eod_matrix
 from ToolKit.signal_generator import Signals
@@ -162,7 +162,7 @@ class SimpleSimulator(object):
         _sale_times = []
         _buy_times = []
         _record_times = []
-        start_time = default_timer()
+        start_time = perf_counter()
         # Create a hierarchical data frame to loop through
         self._assert_equal_columns(price, signal, preference)
         df = concatenate_metrics({
@@ -186,7 +186,7 @@ class SimpleSimulator(object):
         # itertuples() is significantly faster than iterrows(), it however comes
         # at the cost of being able index easily. In order to get around this
         # we use an tuple lookup function: "_idx"
-        iteration_start = default_timer()
+        iteration_start = perf_counter()
         for i, row in enumerate(df.itertuples()):
 
             # date index is always first element of tuple row
@@ -195,7 +195,7 @@ class SimpleSimulator(object):
             # Get symbols with valid and tradable data
             symbols: List[str] = [s for s in all_symbols if _all_valid(row, s)]
 
-            sale_start = default_timer()
+            sale_start = perf_counter()
 
             # Iterate over active positions and sell stocks with a sell signal.
             _active = self.active_symbols
@@ -204,7 +204,7 @@ class SimpleSimulator(object):
                 sell_price = row[_idx(s, 'price')]
                 self.sell_to_close(s, date, sell_price)
 
-            sale_end = default_timer()
+            sale_end = perf_counter()
             # Get up to max_active_positions symbols with a buy signal in 
             # decreasing order of preference
             to_buy = [
@@ -244,7 +244,7 @@ class SimpleSimulator(object):
                     self.buy_to_open(s, date, buy_price)
                     trade_made = True
 
-            buy_end = default_timer()
+            buy_end = perf_counter()
 
             if len(to_exit) == 0 and not trade_made:
                 self.portfolio_history.record_cash(date, self.cash)
@@ -255,7 +255,7 @@ class SimpleSimulator(object):
                 position = active_positions_by_symbol[s]
                 position.record_price_update(date, price)
 
-            record_cash_end = default_timer()
+            record_cash_end = perf_counter()
 
             portfolio_value = 0
             for s in self.active_symbols:
@@ -278,7 +278,7 @@ class SimpleSimulator(object):
                 for s in self.active_symbols: 
                     self.sell_to_close(s, date, row[_idx(s, 'price')])
                 self.portfolio_history.finish() 
-                finish_time = default_timer()
+                finish_time = perf_counter()
                 return
         
         _sale_times.append(sale_end - sale_start)
@@ -290,7 +290,7 @@ class SimpleSimulator(object):
             self.sell_to_close(s, date, row[_idx(s, 'price')])
         self.portfolio_history.finish()        
 
-        finish_time = default_timer()
+        finish_time = perf_counter()
 
         self.time_data = pd.DataFrame({
             "setup_time" : [iteration_start - start_time],
@@ -340,14 +340,14 @@ class BoundSimulators():
         parameters are the lookback window for the buy signal and transaction
         preference
         """
-        calc_start = default_timer()
+        calc_start = perf_counter()
         signal = self.prices.apply(self.signal_func, args=(signal_n,), axis=0)
         preference = self.prices.apply(self.pref_func, args=(preference_n,), axis=0)
-        calc_end = default_timer()
+        calc_end = perf_counter()
         simulator = SimpleSimulator(**self.sim_kwargs)
         simulator.simulate(self.prices, signal, preference)
         simulator.params = (self.signal_id, self.pref_id)
-        sim_end_time = default_timer()
+        sim_end_time = perf_counter()
         simulator.time_data["calculation_time"] = calc_end - calc_start
         simulator.time_data["mid_sim_time"] = sim_end_time - calc_end
 
@@ -361,14 +361,14 @@ class BoundSimulators():
         parameters are the lookback window for the buy signal and transaction
         preference and the type of moving average signal 
         """
-        calc_start = default_timer()
+        calc_start = perf_counter()
         signal = self.prices.apply(self.signal_func, args=(signal_n,), ma_type=self.ma_type, axis=0)
         preference = self.prices.apply(self.pref_func, args=(preference_n,), axis=0)
-        calc_end = default_timer()
+        calc_end = perf_counter()
         simulator = SimpleSimulator(**self.sim_kwargs)
         simulator.simulate(self.prices, signal, preference)
         simulator.params = (self.signal_id, self.pref_id)
-        sim_end_time = default_timer()
+        sim_end_time = perf_counter()
         simulator.time_data["calculation_time"] = calc_end - calc_start
         simulator.time_data["mid_sim_time"] = sim_end_time - calc_end
 
@@ -384,14 +384,14 @@ class BoundSimulators():
         """
         if signal_n2 < signal_n1:
             return None, None
-        calc_start = default_timer()
+        calc_start = perf_counter()
         signal = self.prices.apply(self.signal_func, args=(signal_n1, signal_n2), axis=0)
         preference = self.prices.apply(self.pref_func, args=(preference_n,), axis=0)
-        calc_end = default_timer()
+        calc_end = perf_counter()
         simulator = SimpleSimulator(**self.sim_kwargs)
         simulator.simulate(self.prices, signal, preference)
         simulator.params = (self.signal_id, self.pref_id)
-        sim_end_time = default_timer()
+        sim_end_time = perf_counter()
         simulator.time_data["calculation_time"] = calc_end - calc_start
         simulator.time_data["mid_sim_time"] = sim_end_time - calc_end
 
@@ -412,18 +412,18 @@ class BoundSimulators():
     #     symbols: List[str] = get_all_symbols()
     #     prices: pd.DataFrame = load_eod_matrix(symbols)
 
-    #     start1 = default_timer()
+    #     start1 = perf_counter()
     #     # Use the bollinger band outer band crossorver as a signal
     #     _bollinger = Signals().create_bollinger_band_signal
     #     signal = prices.apply(_bollinger, args=(bollinger_n,), axis=0)
-    #     print(f"bollinger belts time: {default_timer() - start1}")
+    #     print(f"bollinger belts time: {perf_counter() - start1}")
     #     # Use a rolling sharpe ratio approximation as a preference matrix
-    #     start2 = default_timer()
+    #     start2 = perf_counter()
     #     # cagr = Metrics().calculate_cagr(prices)
     #     # print(cagr)
     #     _sharpe = Signals().calculate_rolling_sharpe_ratio
     #     preference = prices.apply(_sharpe, args=(sharpe_n,), axis=0)
-    #     print(f"rolling sharpe time: {default_timer() - start2}")
+    #     print(f"rolling sharpe time: {perf_counter() - start2}")
     #     # Run the simulator
     #     simulator = SimpleSimulator(
     #         initial_cash=10000,
@@ -431,9 +431,9 @@ class BoundSimulators():
     #         percent_slippage=0.0005,
     #         trade_fee=1,
     #     )
-    #     start3 = default_timer()
+    #     start3 = perf_counter()
     #     simulator.simulate(prices, signal, preference)
-    #     print(f"simulator time: {default_timer() - start3}")
+    #     print(f"simulator time: {perf_counter() - start3}")
 
     #     # Print results
     #     # simulator.portfolio_history.print_position_summaries()

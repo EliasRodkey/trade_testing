@@ -8,7 +8,7 @@
 import os
 import sys
 import datetime
-from timeit import default_timer
+from time import perf_counter
 from ToolKit.signal_generator import Signals 
 from ToolKit.data_loading import load_eod_matrix, get_all_symbols
 from ToolKit.log_window import Ui_MainWindow
@@ -95,7 +95,7 @@ class GridSearchOptimizer(object):
         wins = []
         trades = []
         for i, params in enumerate(product(*param_ranges.values())):
-            timer_start = default_timer()
+            timer_start = perf_counter()
             
             if i > 0:
                 s = f"""
@@ -126,21 +126,21 @@ class GridSearchOptimizer(object):
             else:
                 print(f'Simulating: 1 / {total_simulations}...')
 
-            print_time = default_timer()
+            print_time = perf_counter()
             parameters = {n: param for n, param in zip(param_names, params)}
-            params_time = default_timer()
+            params_time = perf_counter()
             sim, results = self.simulate(*params)
             if i == 0:
                 self.sim = sim
                 self.ID
-            timer_mid = default_timer()
+            timer_mid = perf_counter()
             self.make_metadata_dict(self.sim)
             self.add_results(parameters, results, self._metadata)
             returns.append(results.percent_return.iloc[0])
             wins.append(results.positive_trade_ratio.iloc[0])
             trades.append(results.number_of_trades.iloc[0])
 
-            timer_end = default_timer()
+            timer_end = perf_counter()
             total_time_elapsed += timer_end - timer_start 
             sim.time_data["print_time"] = print_time - timer_start
             sim.time_data["outside_sim_time"] = timer_mid - params_time 
@@ -316,7 +316,7 @@ class GridSearchOptimizer(object):
         # returns the mean metrics along with information about how many sets beat
         # the spy returns
         meta = self.results.describe()
-        meta.drop(columns=["signal_n", "preference_n"], inplace=True)
+        meta.drop(columns=self.param_names, inplace=True)
         compiled = meta.loc["mean"]
         compiled["edge_score_stdev"] = self.results["edge_score"].std()
         compiled["simset_size"] = self.results.shape[0]
