@@ -62,6 +62,7 @@ class GridSearchOptimizer(object):
 
         self.simulate = simulation_function
         self._results_list: List[OptimizationResult] = list()
+        self.time_data = {}
         self.time_df = pd.DataFrame()
         # self.ui = Ui_MainWindow()
         # self.ui.show_ui()
@@ -95,7 +96,7 @@ class GridSearchOptimizer(object):
         wins = []
         trades = []
         for i, params in enumerate(product(*param_ranges.values())):
-            timer_start = perf_counter()
+            start_time = perf_counter()
             
             if i > 0:
                 s = f"""
@@ -106,15 +107,7 @@ class GridSearchOptimizer(object):
     |Simulating {i+1} / {total_simulations}...              
     |Expected Time Remaining : {round((n - (i + 1)) * self.time_df.total_time.mean(), 0)}s   
     |                                 
-    |Setup Time : {round(self.time_df.setup_time.mean(), 4)}s              
-    |Calculation Time : {round(self.time_df.calculation_time.mean(), 4)}s       
-    |Transaction Time : {round(self.time_df.transaction_time.mean(), 4)}s        
-    |Sim Iteration Time : {round(self.time_df.internal_sim_time.mean(), 2)}s          
-    |Sim Funciton Time : {round(self.time_df.mid_sim_time.mean(), 2)}s             
-    |Sim Optimization Time : {round(self.time_df.outside_sim_time.mean(), 2)}s       
-    |Analysis Time : {round(self.time_df.finish_time.mean(), 4)}s           
-    |Recording Time : {round(self.time_df.record_results_time.mean(), 4)}s         
-    |Total Time : {round(self.time_df.total_time.mean(), 2)}s 
+    |Avg Sim Time : {round(self.time_df.outside_sim_time.mean(), 2)}s       
     |Elapsed Time : {round(self.time_df.total_time_elapsed.mean(), 2)}s              
     |                                 
     |Avg Simulated Return : {round(100*np.average(returns), 2)}%   
@@ -126,28 +119,24 @@ class GridSearchOptimizer(object):
             else:
                 print(f'Simulating: 1 / {total_simulations}...')
 
-            print_time = perf_counter()
             parameters = {n: param for n, param in zip(param_names, params)}
-            params_time = perf_counter()
+
             sim, results = self.simulate(*params)
             if i == 0:
                 self.sim = sim
                 self.ID
-            timer_mid = perf_counter()
             self.make_metadata_dict(self.sim)
             self.add_results(parameters, results, self._metadata)
             returns.append(results.percent_return.iloc[0])
             wins.append(results.positive_trade_ratio.iloc[0])
             trades.append(results.number_of_trades.iloc[0])
 
-            timer_end = perf_counter()
-            total_time_elapsed += timer_end - timer_start 
-            sim.time_data["print_time"] = print_time - timer_start
-            sim.time_data["outside_sim_time"] = timer_mid - params_time 
-            sim.time_data["record_results_time"] = timer_end - timer_mid
-            sim.time_data["total_time"] = timer_end - timer_start
-            sim.time_data["total_time_elapsed"] = total_time_elapsed
-            self._add_to_time_df(sim.time_data)
+            end_time = perf_counter()
+            total_time = end_time - start_time
+            total_time_elapsed += total_time
+            self.time_data["total_time"] = total_time
+            self.time_data["total_time_elapsed"] = total_time_elapsed
+            self._add_to_time_df(self.time_data)
 
         print(f'Simulated {total_simulations} / {total_simulations} ...')
         print(f'Elapsed time: {total_time_elapsed:.0f}s')
@@ -347,22 +336,21 @@ class GridSearchOptimizer(object):
         self.results.to_csv(simset_path)
 
 
-# Optimizer Usage
-# if __name__ == '__main__':
-#     # GridSearOptomizer example usage
-#     from simulator_21LNG001 import BoundSimulators
+#Optimizer Usage
+if __name__ == '__main__':
+    # GridSearOptomizer example usage
+    from simulator import BoundSimulators
+    import cProfile
 
-#     simulate =  BoundSimulators(
-#         Signals().create_bollinger_band_signal,
-#         Signals().calculate_rolling_sharpe_ratio,
-#         initial_cash=10000, max_active_positions=5
-#     )
-#     optimizer = GridSearchOptimizer(simulate.simulate_lookback_only)
-#     optimizer.optimize(
-#         signal_n=range(10, 15, 5),
-#         performance_n=range(20, 30, 5),
-#     )
-#     optimizer.save_results()
+    simulate =  BoundSimulators(
+        Signals().create_MA_signals,
+        Signals().calculate_rolling_sharpe_ratio,
+        initial_cash=10000, max_active_positions=5
+    )
+    optimizer = GridSearchOptimizer(simulate.simulate_single_ma_lookback)
+    simulate.ma_type = "SMA"
+    cProfile.run('optimizer.optimize(signal_n=range(10, 15, 5),performance_n=range(20, 30, 5))')
+    # optimizer.save_results()
     # optimizer.print_summary()
     # print(optimizer.get_best('excess_cagr'))
     # optimizer.save_results() 

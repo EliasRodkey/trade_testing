@@ -3,3 +3,6 @@ test_data
 
 # ignore pycache files
 *.pyc
+
+#ignore .txt files used for notes
+*.txt
