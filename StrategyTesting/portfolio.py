@@ -242,6 +242,20 @@ class PortfolioHistory(object):
     def _as_oseries(d: Dict[pd.Timestamp, Any]) -> pd.Series:
         return pd.Series(d).sort_index()
 
+    def _generate_trade_summary_df(self) -> pd.DataFrame:
+        self._assert_finished()
+        summaries = []
+        for position in self.position_history:
+            summaries.append(position.trade_summary)
+        try:
+            self.trade_summary_df = pd.concat(summaries, axis=0).reset_index().drop(columns=["index"])
+        except ValueError:
+            cols = [
+                "trade_length", "price_change", 
+                "value_change", "percent_return"
+            ]
+            self.trade_summary_df = pd.DataFrame(columns=cols)
+            
     def _compute_cash_series(self):
         self._cash_series = self._as_oseries(self._cash_history)
 
@@ -302,6 +316,7 @@ class PortfolioHistory(object):
         Notate that the simulation is finished and compute readonly values
         """
         self._simulation_finished = True
+        self._generate_trade_summary_df()
         self._compute_cash_series()
         self.cash_series.name = "cash series"
         self._compute_portfolio_value_series()
@@ -434,20 +449,6 @@ class PortfolioHistory(object):
     def final_equity(self):
         self._assert_finished()
         return self.equity_series[-1]
-    
-    @property
-    def trade_summary_df(self) -> pd.DataFrame:
-        summaries = []
-        for position in self.position_history:
-            summaries.append(position.trade_summary)
-        try:
-            return pd.concat(summaries, axis=0).reset_index().drop(columns=["index"])
-        except ValueError:
-            cols = [
-                "trade_length", "price_change", 
-                "value_change", "percent_return"
-            ]
-            return pd.DataFrame(columns=cols)
 
     @property
     def average_trade_length(self) -> float:
@@ -579,6 +580,7 @@ class PortfolioHistory(object):
         self._assert_finished()
         props = self._PERFORMANCE_METRICS_PROPS
         to_df = {prop: [getattr(self, prop)] for prop in props}
+        # to_df = {prop: [self.__dict__[prop]] for prop in props} #doesn't work because properties havent been called yet
         return pd.DataFrame(to_df)
 
     def print_position_summaries(self):

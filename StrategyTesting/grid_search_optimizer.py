@@ -62,7 +62,6 @@ class GridSearchOptimizer(object):
 
         self.simulate = simulation_function
         self._results_list: List[OptimizationResult] = list()
-        self.time_data = {}
         self.time_df = pd.DataFrame()
         # self.ui = Ui_MainWindow()
         # self.ui.show_ui()
@@ -107,7 +106,7 @@ class GridSearchOptimizer(object):
     |Simulating {i+1} / {total_simulations}...              
     |Expected Time Remaining : {round((n - (i + 1)) * self.time_df.total_time.mean(), 0)}s   
     |                                 
-    |Avg Sim Time : {round(self.time_df.outside_sim_time.mean(), 2)}s       
+    |Avg Sim Time : {round(self.time_df.total_time.mean(), 2)}s       
     |Elapsed Time : {round(self.time_df.total_time_elapsed.mean(), 2)}s              
     |                                 
     |Avg Simulated Return : {round(100*np.average(returns), 2)}%   
@@ -134,9 +133,10 @@ class GridSearchOptimizer(object):
             end_time = perf_counter()
             total_time = end_time - start_time
             total_time_elapsed += total_time
-            self.time_data["total_time"] = total_time
-            self.time_data["total_time_elapsed"] = total_time_elapsed
-            self._add_to_time_df(self.time_data)
+            _temp_time_data = {}
+            _temp_time_data["total_time"] = [total_time]
+            _temp_time_data["total_time_elapsed"] = [total_time_elapsed]
+            self._add_to_time_df(pd.DataFrame(_temp_time_data))
 
         print(f'Simulated {total_simulations} / {total_simulations} ...')
         print(f'Elapsed time: {total_time_elapsed:.0f}s')
@@ -349,7 +349,8 @@ if __name__ == '__main__':
     )
     optimizer = GridSearchOptimizer(simulate.simulate_single_ma_lookback)
     simulate.ma_type = "SMA"
-    cProfile.run('optimizer.optimize(signal_n=range(10, 15, 5),performance_n=range(20, 30, 5))')
+    optimizer.optimize(signal_n=range(10, 15, 5),performance_n=range(20, 30, 5))
+    # cProfile.run('optimizer.optimize(signal_n=range(10, 15, 5),performance_n=range(20, 30, 5))')
     # optimizer.save_results()
     # optimizer.print_summary()
     # print(optimizer.get_best('excess_cagr'))
