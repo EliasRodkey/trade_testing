@@ -84,6 +84,7 @@ class Position(object):
         self.record_price_update(exit_date, exit_price)
         self.exit_date = exit_date
         self.exit_price = exit_price
+        self.value_series = self._generate_value_series()
 
     def record_price_update(self, date, price):
         """
@@ -118,8 +119,7 @@ class Position(object):
     def is_closed(self) -> bool:
         return not self.is_active
     
-    @property
-    def value_series(self) -> pd.Series:
+    def _generate_value_series(self) -> pd.Series:
         """
         Returns the value of the position over time. Ignores self.exit_date.
         Used in calculating the equity curve.
@@ -248,7 +248,7 @@ class PortfolioHistory(object):
         for position in self.position_history:
             summaries.append(position.trade_summary)
         try:
-            self.trade_summary_df = pd.concat(summaries, axis=0).reset_index().drop(columns=["index"])
+            self.trade_summary_df = pd.concat(summaries, axis=0).reset_index(drop=True)
         except ValueError:
             cols = [
                 "trade_length", "price_change", 

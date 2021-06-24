@@ -349,7 +349,7 @@ if __name__ == '__main__':
     )
     optimizer = GridSearchOptimizer(simulate.simulate_single_ma_lookback)
     simulate.ma_type = "SMA"
-    # optimizer.optimize(signal_n=range(5, 15, 5),performance_n=range(20, 50, 5))
+    # optimizer.optimize(signal_n=range(10, 15, 5),performance_n=range(20, 30, 5))
     cProfile.run('optimizer.optimize(signal_n=range(10, 15, 5),performance_n=range(20, 30, 5))')
     # optimizer.save_results()
     # optimizer.print_summary()
