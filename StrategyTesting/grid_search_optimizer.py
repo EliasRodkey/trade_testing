@@ -336,21 +336,21 @@ class GridSearchOptimizer(object):
         self.results.to_csv(simset_path)
 
 
-#Optimizer Usage
-if __name__ == '__main__':
-    # GridSearOptomizer example usage
-    from simulator import BoundSimulators
-    import cProfile
+# #Optimizer Usage
+# if __name__ == '__main__':
+#     # GridSearOptomizer example usage
+#     from simulator import BoundSimulators
+#     import cProfile
 
-    simulate =  BoundSimulators(
-        Signals().create_MA_signals,
-        Signals().calculate_rolling_sharpe_ratio,
-        initial_cash=10000, max_active_positions=5
-    )
-    optimizer = GridSearchOptimizer(simulate.simulate_single_ma_lookback)
-    simulate.ma_type = "SMA"
+#     simulate =  BoundSimulators(
+#         Signals().create_MA_signals,
+#         Signals().calculate_rolling_sharpe_ratio,
+#         initial_cash=10000, max_active_positions=5
+#     )
+#     optimizer = GridSearchOptimizer(simulate.simulate_single_ma_lookback)
+#     simulate.ma_type = "SMA"
     # optimizer.optimize(signal_n=range(10, 15, 5),performance_n=range(20, 30, 5))
-    cProfile.run('optimizer.optimize(signal_n=range(10, 15, 5),performance_n=range(20, 30, 5))')
+    # cProfile.run('optimizer.optimize(signal_n=range(10, 15, 5),performance_n=range(20, 30, 5))')
     # optimizer.save_results()
     # optimizer.print_summary()
     # print(optimizer.get_best('excess_cagr'))

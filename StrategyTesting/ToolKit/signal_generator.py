@@ -1,9 +1,9 @@
 #!python3
-import os
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, Callable
 from sklearn.linear_model import LinearRegression
+import matplotlib.pyplot as plt
 
 
 # Metrics - carries class with various stock performance matrics
@@ -1078,7 +1078,7 @@ class Signals(Indicators):
         lower_range: pd.Series
     ) -> pd.Series:
         """
-
+            
         """
     
     def create_indicator_crossover_signals(
@@ -1188,12 +1188,43 @@ class Signals(Indicators):
         return boll
     
     @staticmethod
-    def show_indicator(indicator_series: pd.Series, signal_series: pd.Series):
+    def show_indicator(
+        price_series: pd.Series=pd.Series(),
+        indicator_series: pd.Series=pd.Series(),
+        signal_series: pd.Series=pd.Series(),
+        combine_price_and_indicator: bool = True 
+        ):
         """Uses pyplot to show a simple graph of the indicator"""
-        import matplotlib.pyplot as plt
-        plt.plot(indicator_series)
-        plt.plot(signal_series)
-        plt.show()
+        sets = [price_series, indicator_series, signal_series]
+        empty_series = [not series.empty for series in sets]
+        empty_series_count = empty_series.count(True)
+        
+        if combine_price_and_indicator:
+            no_signals = [True, True, False]
+            with_signals = [True, True, True]
+            assert empty_series == no_signals or empty_series == with_signals,\
+                "Must include price and indicator series to enable combine_price_and_indicator"
+            fig, axs = plt.subplots(2, sharex=True)
+            if empty_series == no_signals:
+                plt.plot(price_series)
+                plt.plot(indicator_series)
+                plt.show()
+                return
+            else:
+                axs[0].plot(price_series)
+                axs[0].plot(indicator_series)
+                axs[1].plot(signal_series)
+                plt.show()
+                return
+        else:
+            fig, axs = plt.subplots(empty_series_count, sharex=True)
+            i = 0
+            for series in sets:
+                if not series.empty:
+                    axs[i].plot(series)
+                    i += 1
+            if i >= 1:
+                plt.show()
 
 
 # signals testing
@@ -1203,4 +1234,8 @@ if __name__ == "__main__":
     SPY = load_SPY_data()["close"]
     AWU = load_data_as_pd("AWU")["close"]
     signals = Signals()
-    signals.show_indicator(signals.calculate_macd_oscillator(AWU, n1=14, n2=56), signals.create_macd_signals(AWU, n1=14, n2=56))
+    indicator_series = signals.calculate_bollinger_bands(AWU, n=10)
+    signal_series = signals.create_bollinger_band_signals(AWU, n=10)
+    pprint.pprint(signal_series)
+    pprint.pprint(indicator_series)
+    signals.show_indicator(AWU, indicator_series, signal_series)
