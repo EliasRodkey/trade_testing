@@ -1,7 +1,9 @@
 #!python3
+from numpy.core.fromnumeric import mean
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, Callable
+from pandas.io.stata import StataMissingValue
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 
@@ -498,22 +500,24 @@ class Indicators(Metrics):
         typical_price.name = "Typical Price"
         return typical_price
 
-    def calculate_vwap(self, df: pd.DataFrame) -> pd.Series:
+    def calculate_vwap(self, price_df: pd.DataFrame, n: int=20) -> pd.Series:
         """
         Calculates the volume weighted average price
         """
-        typical_price = self.calculate_typical_price(df)
-        numerator = typical_price * df.volume
-        vwap = numerator.cumsum() / df.volume.cumsum()
+        typical_price = self.calculate_typical_price(price_df)
+        numerator = typical_price * price_df.volume
+        rolling_numerator = numerator.rolling(n).sum()
+        rolling_denominator = price_df.volume.rolling(n).sum()
+        vwap = rolling_numerator / rolling_denominator
         vwap.name = "Volume Weighted Average Price"
         return vwap
 
     @staticmethod
-    def calculate_simple_moving_sample_stdev(series: pd.Series, n: int=20) -> pd.Series:
+    def calculate_simple_moving_sample_stdev(price_series: pd.Series, n: int=20) -> pd.Series:
         """
         Calculates the sample moving standard deviation
         """
-        stdev = series.rolling(n).std()
+        stdev = price_series.rolling(n).std()
         stdev.name = "Moving Standard Deviation"
         return stdev
 
@@ -1073,31 +1077,36 @@ class Signals(Indicators):
     
     @staticmethod
     def create_range_exceeding_signals(
-        series: pd.Series, 
-        upper_range: pd.Series, 
-        lower_range: pd.Series
+        price_series: pd.Series,
+        range_df: pd.DataFrame,
+        mean_reversion:bool=True
     ) -> pd.Series:
         """
-            
+        Creates signals of price series crossing above or below a given range
+        data frame with columns named ["upper", "lower"] in range_df arg    
         """
-    
-    def create_indicator_crossover_signals(
-        self, price_series: pd.Series, 
-        indicator_series: pd.Series
-    ) -> pd.Series:
-        difference = price_series - indicator_series
-        signals = self.create_zero_crossing_signals(difference)
+        sell = price_series > range_df['upper']
+        buy = price_series < range_df['lower']
+        signals = (1*buy - 1*sell)
+        if not mean_reversion:
+            signals = -1 * signals
+        signals.name = "Range Exceeding Signals"
         return signals
 
-    def create_momentum_signals(self, series: pd.Series, n: int=14) -> pd.Series:
+    def create_indicator_crossover_signals(
+        self, price_series: pd.Series, 
+        indicator_series: pd.Series,
+        inverse: bool=False
+    ) -> pd.Series:
         """
-        Creates signals based on the momentum crossover principle
-        if momentum > 0, price accelerating upwards == buy
-        if momentum < 0, price accelerating downards == self
+        Creates signals for when a price series crosses over a indicator series
+        specifically, generates buy signal when price crosses from below to above indicator
+        and sells when price crosses from above to below. can be reversed by changing inverse arg to True
         """
-        mom = self.calculate_momentum(series, n)
-        signals = self.create_zero_crossing_signals(mom)
-        signals.name = "Momentum Signals"
+        difference = price_series - indicator_series
+        signals = self.create_zero_crossing_signals(difference)
+        if inverse:
+            signals = -1*signals
         return signals
     
     def create_MA_signals(
@@ -1128,9 +1137,7 @@ class Signals(Indicators):
         signals.name = " Signals"
         return signals
         
-    # Kaufman adaptive moving average (KAMA)
     # MESA adaptive moving average (MAMA)
-    # typical price 
     # volume weighted average price (VWAP)
     # simple moving standard deviation 
     # moving average convergence divergence oscillator (MACD)
@@ -1159,20 +1166,53 @@ class Signals(Indicators):
     # midpoint (MID)
     # on-balance volume (OBV)
 
-    def create_macd_signals(self, series: pd.Series, n1: int=5, n2: int=34) -> pd.Series:
+    def create_momentum_signals(self, series: pd.Series, n: int=14) -> pd.Series:
+        """
+        Creates signals based on the momentum crossover principle
+        if momentum > 0, price accelerating upwards == buy
+        if momentum < 0, price accelerating downards == self
+        """
+        mom = self.calculate_momentum(series, n)
+        signals = self.create_zero_crossing_signals(mom)
+        signals.name = "Momentum Signals"
+        return signals
+
+    def create_KAMA_signals(self, price_series: pd.Series, n: int=10, 
+        fast_lookback:int=5, slow_lookback: int=30
+    ) -> pd.Series:
+        """
+        Creates buy and sell signals using simple crossover of Kaufmans adaptive
+        moving average
+        """
+        kama = self.calculate_KAMA(price_series, n, fast_lookback, slow_lookback)
+        signals = self.create_indicator_crossover_signals(price_series, kama)
+        signals.name = "Kaufmans Adaptive Moving Average Signals"
+        return signals
+
+    def create_vwap_signals(self, price_df: pd.DataFrame) -> pd.Series:
+        """
+        Creates signals for vwap indicator, when price goes above vwap triggers sell signal
+        and vice versa
+        """
+        vwap = self.calculate_vwap(price_df)
+        signals = self.create_indicator_crossover_signals(price_df["close"], vwap, inverse=True)
+        signals.name = "Volume Weighted Average Price Crossover Signals"
+        return signals
+
+    def create_macd_signals(self, price_series: pd.Series, n1: int=5, n2: int=34) -> pd.Series:
         """ 
         Create a momentum-based signal based on the MACD crossover principle. 
         Generate a buy signal when the MACD cross above zero, and a sell signal when
         it crosses below zero.
         """
         # Calculate the macd and get the signs of the values.
-        macd = self.calculate_macd_oscillator(series, n1, n2)
+        macd = self.calculate_macd_oscillator(price_series, n1, n2)
         macd_signals = self.create_zero_crossing_signals(macd)
         macd_signals.name = "MACD Signals"
         return macd_signals
 
     def create_bollinger_band_signals(
-        self, series: pd.Series, 
+        self, price_series: pd.Series, 
         n: int=20
     ) -> pd.Series:
         """
@@ -1180,10 +1220,8 @@ class Signals(Indicators):
         Bollinger bands. Generate a buy signal when the price is below the lower 
         band, and a sell signal when the price is above the upper band.
         """
-        bollinger_bands = self.calculate_bollinger_bands(series, n=n)
-        sell = series > bollinger_bands['upper']
-        buy = series < bollinger_bands['lower']
-        boll = (1*buy - 1*sell)
+        bollinger_bands = self.calculate_bollinger_bands(price_series, n=n)
+        boll = self.create_range_exceeding_signals(price_series, bollinger_bands)
         boll.name = "Bollinger Band Signals"
         return boll
     
@@ -1204,18 +1242,24 @@ class Signals(Indicators):
             with_signals = [True, True, True]
             assert empty_series == no_signals or empty_series == with_signals,\
                 "Must include price and indicator series to enable combine_price_and_indicator"
-            fig, axs = plt.subplots(2, sharex=True)
             if empty_series == no_signals:
                 plt.plot(price_series)
                 plt.plot(indicator_series)
                 plt.show()
                 return
             else:
+                fig, axs = plt.subplots(2, sharex=True)
                 axs[0].plot(price_series)
                 axs[0].plot(indicator_series)
                 axs[1].plot(signal_series)
                 plt.show()
                 return
+        elif empty_series_count == 1:
+            for series in sets:
+                if not series.empty:
+                    plt.plot(series)
+            plt.show()
+            return
         else:
             fig, axs = plt.subplots(empty_series_count, sharex=True)
             i = 0
@@ -1225,17 +1269,18 @@ class Signals(Indicators):
                     i += 1
             if i >= 1:
                 plt.show()
+                return
 
 
 # signals testing
 if __name__ == "__main__":
     import pprint
     from data_loading import load_SPY_data, load_data_as_pd
-    SPY = load_SPY_data()["close"]
-    AWU = load_data_as_pd("AWU")["close"]
+    SPY = load_SPY_data()
+    AWU = load_data_as_pd("AWU")
     signals = Signals()
-    indicator_series = signals.calculate_bollinger_bands(AWU, n=10)
-    signal_series = signals.create_bollinger_band_signals(AWU, n=10)
+    indicator_series = signals.calculate_vwap(AWU)
+    signal_series = signals.create_vwap_signals(AWU)
     pprint.pprint(signal_series)
     pprint.pprint(indicator_series)
-    signals.show_indicator(AWU, indicator_series, signal_series)
+    signals.show_indicator(AWU["close"], indicator_series, signal_series)
