@@ -356,6 +356,40 @@ class BoundSimulators():
         simulator.params = (self.signal_id, self.pref_id)
 
         return simulator, simulator.portfolio_history.performance_metric_data
+    
+    def simulate_kama(
+        self, signal_n: int, fast_lookback: int, slow_lookback: int, preference_n: int
+    ) -> pd.DataFrame:
+        """
+        Simulation that takes 1 signal and 1 preference and the only editable 
+        parameters are the lookback window for the buy signal and transaction
+        preference and the type of moving average signal 
+        """
+        if fast_lookback > slow_lookback:
+            return None, None
+        signal = self.prices.apply(self.signal_func, args=(signal_n, fast_lookback, slow_lookback), axis=0)
+        preference = self.prices.apply(self.pref_func, args=(preference_n,), axis=0)
+        simulator = SimpleSimulator(**self.sim_kwargs)
+        simulator.simulate(self.prices, signal, preference)
+        simulator.params = (self.signal_id, self.pref_id)
+
+        return simulator, simulator.portfolio_history.performance_metric_data
+
+    def simulate_static_bound_oscillator(
+        self, signal_n: int, upper_bound: int, lower_bound: int, preference_n: int
+    ) -> pd.DataFrame:
+        """
+        Simulation that takes 1 signal and 1 preference and the only editable 
+        parameters are the lookback window for the buy signal and transaction
+        preference and the type of moving average signal 
+        """
+        signal = self.prices.apply(self.signal_func, args=(signal_n, upper_bound, lower_bound), ma_type=self.ma_type, axis=0)
+        preference = self.prices.apply(self.pref_func, args=(preference_n,), axis=0)
+        simulator = SimpleSimulator(**self.sim_kwargs)
+        simulator.simulate(self.prices, signal, preference)
+        simulator.params = (self.signal_id, self.pref_id)
+
+        return simulator, simulator.portfolio_history.performance_metric_data
 
 
 # Example Usage
