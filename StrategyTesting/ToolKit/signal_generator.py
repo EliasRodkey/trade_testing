@@ -1092,6 +1092,24 @@ class Signals(Indicators):
             signals = -1 * signals
         signals.name = "Range Exceeding Signals"
         return signals
+    
+    @staticmethod
+    def create_static_range_exceeding_signals(
+        indicator_series: pd.Series,
+        upper_bound: int, lower_bound: float,
+        mean_reversion:bool=True
+    ) -> pd.Series:
+        """
+        Creates signals of price series crossing above or below a given range
+        data frame with columns named ["upper", "lower"] in range_df arg    
+        """
+        sell = indicator_series > upper_bound
+        buy = indicator_series < lower_bound
+        signals = (1*buy - 1*sell)
+        if not mean_reversion:
+            signals = -1 * signals
+        signals.name = "Range Exceeding Signals"
+        return signals
 
     def create_indicator_crossover_signals(
         self, price_series: pd.Series, 
@@ -1138,13 +1156,6 @@ class Signals(Indicators):
         return signals
         
     # MESA adaptive moving average (MAMA)
-    # volume weighted average price (VWAP)
-    # simple moving standard deviation 
-    # moving average convergence divergence oscillator (MACD)
-    # stochastic oscillator (STOCH)
-    # relative strength index (RSI)
-    # stochastic RSI
-    # williams %r 
     # average true range (ATR)
     # plus, minus directional movement
     # plus, minus directional index
@@ -1210,6 +1221,59 @@ class Signals(Indicators):
         macd_signals = self.create_zero_crossing_signals(macd)
         macd_signals.name = "MACD Signals"
         return macd_signals
+
+    def create_stochastic_oscillator_signals(
+        self, price_series: pd.Series, 
+        n: int=14, upper_bound: float=0.8, lower_bound: float=0.2,
+        ma: str="simple_moving_average"
+     ) -> pd.Series:
+        """
+        Creates range exceeding signals for stochasitc oscillator
+        """
+        oscillator = self.calculate_stochastic_oscillator(price_series, n=n, ma=ma)
+        signals = self.create_static_range_exceeding_signals(oscillator, upper_bound, lower_bound)
+        signals.name = "Stochasitc Oscillator Signals"
+        return signals
+
+    def create_relative_strength_index_signals(
+        self, price_series: pd.Series, 
+        n: int=14, upper_bound: int=70, lower_bound: int=30,
+        ma: str="simple_moving_average"
+     ) -> pd.Series:
+        """
+        Creates range exceeding signals for relative strength index
+        """
+        oscillator = self.calculate_relative_strength_index(price_series, n=n, ma=ma)
+        signals = self.create_static_range_exceeding_signals(oscillator, upper_bound, lower_bound)
+        signals.name = "Relative Strength Index Signals"
+        return signals
+    
+    def create_stochastic_rsi_signals(
+        self, price_series: pd.Series, 
+        n: int=14, upper_bound: float=0.8, lower_bound: float=0.2,
+        ma: str="simple_moving_average"
+     ) -> pd.Series:
+        """
+        Creates range exceeding signals for stochasitc rsi
+        """
+        oscillator = self.calculate_stochastic_rsi(price_series, n=n, ma=ma)
+        signals = self.create_static_range_exceeding_signals(oscillator, upper_bound, lower_bound)
+        signals.name = "Relative Strength Index Signals"
+        return signals
+    
+    def create_williams_r_signals(
+        self, price_series: pd.Series, 
+        n: int=14, upper_bound: int=80, lower_bound: int=20,
+        ma: str="simple_moving_average"
+     ) -> pd.Series:
+        """
+        Creates range exceeding signals for williams %r
+        """
+        oscillator = self.calculate_williams_r(price_series, n=n)
+        signals = self.create_static_range_exceeding_signals(oscillator, upper_bound, lower_bound)
+        signals.name = "Relative Strength Index Signals"
+        return signals
+
 
     def create_bollinger_band_signals(
         self, price_series: pd.Series, 
@@ -1277,10 +1341,10 @@ if __name__ == "__main__":
     import pprint
     from data_loading import load_SPY_data, load_data_as_pd
     SPY = load_SPY_data()
-    AWU = load_data_as_pd("AWU")
+    AWU = load_data_as_pd("AWU")["close"]
     signals = Signals()
-    indicator_series = signals.calculate_vwap(AWU)
-    signal_series = signals.create_vwap_signals(AWU)
+    indicator_series = signals.calculate_williams_r(AWU)
+    signal_series = signals.create_williams_r_signals(AWU)
     pprint.pprint(signal_series)
     pprint.pprint(indicator_series)
-    signals.show_indicator(AWU["close"], indicator_series, signal_series)
+    signals.show_indicator(AWU, indicator_series, signal_series, combine_price_and_indicator=False)

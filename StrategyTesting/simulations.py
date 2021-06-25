@@ -3,10 +3,14 @@ from multiprocessing import Process
 from simulator import BoundSimulators
 from grid_search_optimizer import GridSearchOptimizer
 from ToolKit.signal_generator import Signals
-import pandas as pd
-import os
-from typing import Callable, List
 
+# untested
+# KAMA
+# VWAP
+# Stochastic Oscillator
+# RSI
+# Stochastic RSI
+# Williams %r
 
 for max_pos in range(5, 25, 5):
     sim_class = BoundSimulators( 
