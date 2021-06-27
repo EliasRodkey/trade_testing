@@ -281,11 +281,13 @@ class BoundSimulators():
     def __init__(
         self, signal_func: Callable, 
         preference_func: Callable,
+        contains_ma_type: bool=False,
         **sim_kwargs
     ):
         symbols = get_all_symbols()
         self.prices = load_eod_matrix(symbols)
         self.max_posiitons = sim_kwargs["max_active_positions"]
+        self.contains_ma_type = contains_ma_type
         self.sim_kwargs = sim_kwargs
 
         self.signal_func = signal_func
@@ -309,87 +311,22 @@ class BoundSimulators():
             _id = _id + word[:to_concat]
         return _id.upper()
 
-    def simulate_lookback_only(self, signal_n: int, preference_n: int) -> pd.DataFrame:
-        """
-        Simulation that takes 1 signal and 1 preference and the only editable 
-        parameters are the lookback window for the buy signal and transaction
-        preference
-        """
-        signal = self.prices.apply(self.signal_func, args=(signal_n,), axis=0)
-        preference = self.prices.apply(self.pref_func, args=(preference_n,), axis=0)
-        simulator = SimpleSimulator(**self.sim_kwargs)
-        simulator.simulate(self.prices, signal, preference)
-        simulator.params = (self.signal_id, self.pref_id)
-
-        return simulator, simulator.portfolio_history.performance_metric_data
-
-    def simulate_single_ma_lookback(
-        self, signal_n: int, preference_n: int
+    def simulate(
+        self, signal_args: tuple, preference_args: tuple
     ) -> pd.DataFrame:
-        """
-        Simulation that takes 1 signal and 1 preference and the only editable 
-        parameters are the lookback window for the buy signal and transaction
-        preference and the type of moving average signal 
-        """
-        signal = self.prices.apply(self.signal_func, args=(signal_n,), ma_type=self.ma_type, axis=0)
-        preference = self.prices.apply(self.pref_func, args=(preference_n,), axis=0)
-        simulator = SimpleSimulator(**self.sim_kwargs)
-        simulator.simulate(self.prices, signal, preference)
-        simulator.params = (self.signal_id, self.pref_id)
-
-        return simulator, simulator.portfolio_history.performance_metric_data
-    
-    def simulate_dual_lookback(
-        self, signal_n1: int, signal_n2: int, preference_n: int
-    ) -> pd.DataFrame:
-        """
-        Simulation that takes 1 signal and 1 preference and the only editable 
-        parameters are the lookback window for the buy signal and transaction
-        preference and the type of moving average signal 
-        """
-        if signal_n2 < signal_n1:
-            return None, None
-        signal = self.prices.apply(self.signal_func, args=(signal_n1, signal_n2), axis=0)
-        preference = self.prices.apply(self.pref_func, args=(preference_n,), axis=0)
-        simulator = SimpleSimulator(**self.sim_kwargs)
-        simulator.simulate(self.prices, signal, preference)
-        simulator.params = (self.signal_id, self.pref_id)
-
-        return simulator, simulator.portfolio_history.performance_metric_data
-    
-    def simulate_kama(
-        self, signal_n: int, fast_lookback: int, slow_lookback: int, preference_n: int
-    ) -> pd.DataFrame:
-        """
-        Simulation that takes 1 signal and 1 preference and the only editable 
-        parameters are the lookback window for the buy signal and transaction
-        preference and the type of moving average signal 
-        """
-        if fast_lookback > slow_lookback:
-            return None, None
-        signal = self.prices.apply(self.signal_func, args=(signal_n, fast_lookback, slow_lookback), axis=0)
-        preference = self.prices.apply(self.pref_func, args=(preference_n,), axis=0)
+        # generic bound simulated funciton that can take multiple changing variables
+        # must be careful when creating the signal_args and preference_args order
+        if self.contains_ma_type:
+            signal = self.prices.apply(self.signal_func, args=signal_args, ma_type=self.ma_type, axis=0)
+        else:
+            signal = self.prices.apply(self.signal_func, args=signal_args, axis=0)
+        preference = self.prices.apply(self.pref_func, args=preference_args, axis=0)
         simulator = SimpleSimulator(**self.sim_kwargs)
         simulator.simulate(self.prices, signal, preference)
         simulator.params = (self.signal_id, self.pref_id)
 
         return simulator, simulator.portfolio_history.performance_metric_data
 
-    def simulate_static_bound_oscillator(
-        self, signal_n: int, upper_bound: int, lower_bound: int, preference_n: int
-    ) -> pd.DataFrame:
-        """
-        Simulation that takes 1 signal and 1 preference and the only editable 
-        parameters are the lookback window for the buy signal and transaction
-        preference and the type of moving average signal 
-        """
-        signal = self.prices.apply(self.signal_func, args=(signal_n, upper_bound, lower_bound), ma_type=self.ma_type, axis=0)
-        preference = self.prices.apply(self.pref_func, args=(preference_n,), axis=0)
-        simulator = SimpleSimulator(**self.sim_kwargs)
-        simulator.simulate(self.prices, signal, preference)
-        simulator.params = (self.signal_id, self.pref_id)
-
-        return simulator, simulator.portfolio_history.performance_metric_data
 
 
 # Example Usage

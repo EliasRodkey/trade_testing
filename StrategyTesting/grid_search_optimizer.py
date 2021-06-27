@@ -58,11 +58,12 @@ class GridSearchOptimizer(object):
     utilities with return data.
     """
 
-    def __init__(self, simulation_function: Callable):
+    def __init__(self, simulation_function: Callable, save_results: bool=True):
 
         self.simulate = simulation_function
         self._results_list: List[OptimizationResult] = list()
         self.time_df = pd.DataFrame()
+        self.save = save_results
         # self.ui = Ui_MainWindow()
         # self.ui.show_ui()
 
@@ -78,15 +79,22 @@ class GridSearchOptimizer(object):
         _to_concat = [self.time_df, times_to_add]
         self.time_df = pd.concat(_to_concat, axis=0).reset_index().drop(columns=["index"])
 
-    def optimize(self, **optimization_ranges: SimKwargs):
-        assert optimization_ranges, 'Must provide non-empty parameters.'
+    def optimize(self, signal_ranges: dict, preference_ranges: dict):
+        assert signal_ranges and preference_ranges, 'Must provide non-empty parameters.'
 
-        # Convert all iterables to lists
-        param_ranges = {k: list(v) for k, v in optimization_ranges.items()}
-        self.param_names = param_names = list(param_ranges.keys())
+        # Convert all iterables to lranges
+        signal_param_ranges = {k: list(v) for k, v in signal_ranges.items()}
+        preference_param_ranges = {k: list(v) for k, v in preference_ranges.items()}
+        param_ranges = signal_param_ranges | preference_param_ranges
+
+        self.signal_param_names = signal_param_names = list(signal_param_ranges.keys())
+        self.preference_param_names = preference_param_names = list(preference_param_ranges.keys())
+        self.param_names = param_names = signal_param_names + preference_param_names
 
         # Count total simulation
-        n = total_simulations = np.prod([len(r) for r in param_ranges.values()])
+        n = total_simulations = np.prod(
+            [len(r) for r in signal_param_ranges.values()] + [len(r) for r in preference_param_ranges.values()]
+        )
 
         total_time_elapsed = 0
 
@@ -99,28 +107,30 @@ class GridSearchOptimizer(object):
             
             if i > 0:
                 s = f"""
-    ____________________________________
-    |########     SIM LOG    ######## 
-    |   {self.ID}  
-    |                                   
-    |Simulating {i+1} / {total_simulations}...              
-    |Expected Time Remaining : {round((n - (i + 1)) * self.time_df.total_time.mean(), 0)}s   
-    |                                 
-    |Avg Sim Time : {round(self.time_df.total_time.mean(), 2)}s       
-    |Elapsed Time : {round(self.time_df.total_time_elapsed.mean(), 2)}s              
-    |                                 
-    |Avg Simulated Return : {round(100*np.average(returns), 2)}%   
-    |Avg Simulated Win Percent : {100*round(np.average(wins), 2)}% 
-    |Avg Number of Trades : {round(np.average(trades), 2)}    
-    |___________________________________
+                ____________________________________
+                |########     SIM LOG    ######## 
+                |   {self.ID}  
+                |                                   
+                |Simulating {i+1} / {total_simulations}...              
+                |Expected Time Remaining : {round((n - (i + 1)) * self.time_df.total_time.mean(), 0)}s   
+                |                                 
+                |Avg Sim Time : {round(self.time_df.total_time.mean(), 2)}s       
+                |Elapsed Time : {round(self.time_df.total_time_elapsed.mean(), 2)}s              
+                |                                 
+                |Avg Simulated Return : {round(100*np.average(returns), 2)}%   
+                |Avg Simulated Win Percent : {100*round(np.average(wins), 2)}% 
+                |Avg Number of Trades : {round(np.average(trades), 2)}    
+                |___________________________________
                 """
                 print(s)
             else:
                 print(f'Simulating: 1 / {total_simulations}...')
 
             parameters = {n: param for n, param in zip(param_names, params)}
+            signal_params = params[:len(signal_param_names)]
+            preference_params = params[len(signal_param_names):]
 
-            sim, results = self.simulate(*params)
+            sim, results = self.simulate(signal_params, preference_params)
             if i == 0:
                 self.sim = sim
                 self.ID
@@ -143,6 +153,8 @@ class GridSearchOptimizer(object):
         print(f'Done')
 
         self._optimization_finished = True
+        if self.save:
+            self.save_results()
 
     def _assert_finished(self):
         assert self._optimization_finished, \
@@ -279,13 +291,12 @@ class GridSearchOptimizer(object):
         signal, pref = list(sim_class.params)
         _params = f"{signal}_{pref}"
         _date = datetime.datetime.now().strftime("%y%m%d")
-        _maxpos = f"MAXPOS{sim_class.max_active_positions}"
         count = 0
         iterator = f"_{count}"
-        while os.path.exists(f"StrategyTesting\\optimization_results\\{_params}_{_maxpos}_{_date}{iterator}.csv"):
+        while os.path.exists(f"StrategyTesting\\optimization_results\\{_params}_{_date}{iterator}.csv"):
             count += 1
             iterator = f"_{count}"
-        return f"{_params}_{_maxpos}_{_date}{iterator}"
+        return f"{_params}_{_date}{iterator}"
 
     @property
     def ID(self) -> str:

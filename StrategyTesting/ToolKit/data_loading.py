@@ -13,6 +13,8 @@ from typing import Dict, List
 
 EOD_DATA_DIR = os.path.join("StrategyTesting", "test_data", "eod")
 SPY_PATH  = os.path.join("StrategyTesting", "test_data", "SPY.csv")
+RESULTS_PATH = os.path.join("StrategyTesting", "optimization_results")
+
 
 def load_data_as_pd(symbol: str) -> pd.DataFrame:
     """Loads data from test_data\\eod stock with input symbol"""
@@ -82,7 +84,39 @@ def concatenate_metrics(df_by_metric: Dict[str, pd.DataFrame]) -> pd.DataFrame:
 
     return df
     
-# # laoding data usage
-# if __name__ == "__main__":
-#     matrix = load_eod_matrix(get_all_symbols())
-#     print(matrix)
+def list_results_files() -> list:
+    # walks the optimization_results directory and returns the simset ids in a list
+    for _, _, filenames in os.walk(RESULTS_PATH):
+        return filenames
+    
+def find_unmerged_files(results_files: list, as_filename: bool=True, as_path: bool=False) -> list:
+    # iterates through results files names list and returns those containing 
+    # maxpos element
+    if as_filename == False:
+        as_path=False
+    unmerged = []
+    for filename in results_files:
+        if "maxpos".upper() in filename:
+            unmerged.append(filename)
+    
+    if not as_filename:
+        for i, filename in enumerate(unmerged):
+            unmerged[i] = filename.replace(".csv", "")
+    if as_path:
+        for i, filename in enumerate(unmerged):
+            file_path = os.path.join(RESULTS_PATH, filename)
+            unmerged[i] = file_path
+    return unmerged
+
+def extract_id(unmerged_simset_id: str) -> str:
+    pass
+
+def group_simsets():
+    pass
+
+
+# laoding data usage
+if __name__ == "__main__":
+    simset_ids = list_results_files()
+    to_merge = find_unmerged_files(simset_ids, as_path=True)
+    print(to_merge)

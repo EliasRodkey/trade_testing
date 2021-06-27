@@ -1225,12 +1225,12 @@ class Signals(Indicators):
     def create_stochastic_oscillator_signals(
         self, price_series: pd.Series, 
         n: int=14, upper_bound: int=80, lower_bound: int=20,
-        ma: str="simple_moving_average"
+        ma_type: str="simple_moving_average"
      ) -> pd.Series:
         """
         Creates range exceeding signals for stochasitc oscillator
         """
-        oscillator = self.calculate_stochastic_oscillator(price_series, n=n, ma=ma)
+        oscillator = self.calculate_stochastic_oscillator(price_series, n=n, ma=ma_type)
         signals = self.create_static_range_exceeding_signals(oscillator*100, upper_bound, lower_bound)
         signals.name = "Stochasitc Oscillator Signals"
         return signals
@@ -1238,12 +1238,12 @@ class Signals(Indicators):
     def create_relative_strength_index_signals(
         self, price_series: pd.Series, 
         n: int=14, upper_bound: int=70, lower_bound: int=30,
-        ma: str="simple_moving_average"
+        ma_type: str="simple_moving_average"
      ) -> pd.Series:
         """
         Creates range exceeding signals for relative strength index
         """
-        oscillator = self.calculate_relative_strength_index(price_series, n=n, ma=ma)
+        oscillator = self.calculate_relative_strength_index(price_series, n=n, ma=ma_type)
         signals = self.create_static_range_exceeding_signals(oscillator, upper_bound, lower_bound)
         signals.name = "Relative Strength Index Signals"
         return signals
@@ -1251,12 +1251,12 @@ class Signals(Indicators):
     def create_stochastic_rsi_signals(
         self, price_series: pd.Series, 
         n: int=14, upper_bound: int=80, lower_bound: int=20,
-        ma: str="simple_moving_average"
+        ma_type: str="simple_moving_average"
      ) -> pd.Series:
         """
         Creates range exceeding signals for stochasitc rsi
         """
-        oscillator = self.calculate_stochastic_rsi(price_series, n=n, ma=ma)
+        oscillator = self.calculate_stochastic_rsi(price_series, n=n, ma=ma_type)
         signals = self.create_static_range_exceeding_signals(oscillator*100, upper_bound, lower_bound)
         signals.name = "Relative Strength Index Signals"
         return signals
@@ -1264,7 +1264,6 @@ class Signals(Indicators):
     def create_williams_r_signals(
         self, price_series: pd.Series, 
         n: int=14, upper_bound: int=80, lower_bound: int=20,
-        ma: str="simple_moving_average"
      ) -> pd.Series:
         """
         Creates range exceeding signals for williams %r
@@ -1273,7 +1272,6 @@ class Signals(Indicators):
         signals = self.create_static_range_exceeding_signals(oscillator, upper_bound, lower_bound)
         signals.name = "Relative Strength Index Signals"
         return signals
-
 
     def create_bollinger_band_signals(
         self, price_series: pd.Series, 
