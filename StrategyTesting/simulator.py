@@ -318,6 +318,7 @@ class BoundSimulators():
         # must be careful when creating the signal_args and preference_args order
         if self.contains_ma_type:
             signal = self.prices.apply(self.signal_func, args=signal_args, ma_type=self.ma_type, axis=0)
+            self.signal_id = self._make_funciton_id(self.ma_type) + self.signal_id
         else:
             signal = self.prices.apply(self.signal_func, args=signal_args, axis=0)
         preference = self.prices.apply(self.pref_func, args=preference_args, axis=0)
