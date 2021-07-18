@@ -1,9 +1,8 @@
 #!python3
-from numpy.core.fromnumeric import mean
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, Callable
-from pandas.io.stata import StataMissingValue
+# import swifter
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 
@@ -30,19 +29,38 @@ import matplotlib.pyplot as plt
 class Metrics():
     def __init__(self):
         self.return_series_types = ["log", "percent"]
+        # self.DRAWDOWN_EVALUATORS: Dict[str, Callable] = {
+        #     'dollar': lambda price, peak: peak - price,
+        #     'percent': lambda price, peak: -((price / peak) - 1),
+        #     'log': lambda price, peak: np.log(peak) - np.log(price),
+        # }
+
         self.DRAWDOWN_EVALUATORS: Dict[str, Callable] = {
-            'dollar': lambda price, peak: peak - price,
-            'percent': lambda price, peak: -((price / peak) - 1),
-            'log': lambda price, peak: np.log(peak) - np.log(price),
+            'dollar': self.dollar_drawdown,
+            'percent': self.percent_drawdown,
+            'log': self.log_drawdown,
         }
 
     @staticmethod
+    def dollar_drawdown(price, peak) -> float:
+        # returns the dollar drawdown value of a peak and current price
+        return peak - price
+    
+    @staticmethod
+    def percent_drawdown(price, peak) -> float:
+        # returns the percent drawdown value of a peak and current price
+        return -((price / peak) - 1)
+
+    @staticmethod
+    def log_drawdown(price, peak) -> float:
+        # returns the log drawdown value of a peak and current price
+        return np.log(peak) - np.log(price)
+
+    @staticmethod
     def calculate_return_series(series: pd.Series) -> pd.Series:
-        """
-        Calculates the return series of a time series.
-        The first value will always be NaN.
-        Output series retains the index of the input series.
-        """
+        # Calculates the return series of a time series.
+        # The first value will always be NaN.
+        # Output series retains the index of the input series.
         shifted_series = series.shift(1, axis=0)
         return series / shifted_series - 1
     
@@ -368,11 +386,8 @@ class Indicators(Metrics):
     
     def get_ma_from_string(self, string):
         compatible = [
-            "simple_moving_average",
-            "triangular_moving_average",
-            "weighted_moving_average",
-            "exponential_moving_average",
-            "DEMA", "TEMA"
+            "SMA","TMA","WMA",
+            "EMA","DEMA", "TEMA"
         ]
         if string not in compatible:
             string = compatible[0]
@@ -389,7 +404,7 @@ class Indicators(Metrics):
         return mom
 
     @staticmethod
-    def calculate_simple_moving_average(series: pd.Series, n: int=20) -> pd.Series:
+    def calculate_SMA(series: pd.Series, n: int=20) -> pd.Series:
         """
         Calculates the simple moving average
         """
@@ -397,28 +412,28 @@ class Indicators(Metrics):
         sma.name = "Simple Moving Average"
         return sma
     
-    def calculate_triangular_moving_average(self, series: pd.Series, n: int=20) -> pd.Series:
+    def calculate_TMA(self, series: pd.Series, n: int=20) -> pd.Series:
         """
         Calculates the triangular moving average
         """
-        sma = self.calculate_simple_moving_average(series, n)
-        tma = self.calculate_simple_moving_average(sma, n)
+        sma = self.calculate_SMA(series, n)
+        tma = self.calculate_SMA(sma, n)
         tma.name = "Triangular Moving Average"
         return tma
     
     @staticmethod
-    def calculate_weighted_moving_average(series: pd.Series, n: int=20) -> pd.Series:
+    def calculate_WMA(series: pd.Series, n: int=20) -> pd.Series:
         """
         Calculates weighted moving average of a data set
         """
         denominator = int((n * (n+1)) / 2)
-        weights = [i + 1 for i in range(n)]
-        wma = series.rolling(n).apply(lambda x: np.sum(weights * x) / denominator)
+        weights = [(i + 1)/denominator for i in range(n)]
+        wma = series.rolling(n).apply(lambda x: np.sum(weights * x))
         wma.name = "Weighted Moving Average"
         return wma
     
     @staticmethod
-    def calculate_exponential_moving_average(series: pd.Series, n: int=20) -> pd.Series:
+    def calculate_EMA(series: pd.Series, n: int=20) -> pd.Series:
         """
         Calculates exponential moving average
         """
@@ -430,8 +445,8 @@ class Indicators(Metrics):
         """
         Calculates the double exponential moving average
         """
-        ema = self.calculate_exponential_moving_average(series, n)
-        ema_of_ema = self.calculate_exponential_moving_average(ema, n)
+        ema = self.calculate_EMA(series, n)
+        ema_of_ema = self.calculate_EMA(ema, n)
         dema = (2 * ema) - ema_of_ema
         dema.name = "Double Exponential Moving Average"
         return dema
@@ -440,9 +455,9 @@ class Indicators(Metrics):
         """
         Calculates the triple exponential moving average
         """
-        ema_1 = self.calculate_exponential_moving_average(series, n)
-        ema_2 = self.calculate_exponential_moving_average(ema_1, n)
-        ema_3 = self.calculate_exponential_moving_average(ema_2, n)
+        ema_1 = self.calculate_EMA(series, n)
+        ema_2 = self.calculate_EMA(ema_1, n)
+        ema_3 = self.calculate_EMA(ema_2, n)
         tema = (3 * ema_1) - (3 * ema_2) + ema_3
         tema.name = "Triple Exponential Moving Average"
         return tema
@@ -466,7 +481,7 @@ class Indicators(Metrics):
         sc = (er * (fast_sc - slow_sc) + fast_sc) ** 2
 
         # Calculate kaufmans adaptive moving average
-        kama = [self.calculate_simple_moving_average(series, n).dropna()[0]]
+        kama = [self.calculate_SMA(series, n).dropna()[0]]
         last_value = kama[0]
         for i, value in enumerate(sc):
             if i == (n - 1):
@@ -524,8 +539,8 @@ class Indicators(Metrics):
     def calculate_macd_oscillator(
         self, series: pd.Series,
         n1: int=5, n2: int=34,
-        ma1: str="simple_moving_average",
-        ma2: str="simple_moving_average"
+        ma1: str="SMA",
+        ma2: str="SMA"
     ) -> pd.Series:
         """
         Calculate the moving average convergence divergence oscillator, given a 
@@ -556,7 +571,7 @@ class Indicators(Metrics):
     
     def calculate_relative_strength_index(
         self, series: pd.Series, n: int=20,
-        ma: str="exponential_moving_average"
+        ma: str="EMA"
     ) -> pd.Series:
         """
         Calculates the relative strength index
@@ -574,7 +589,7 @@ class Indicators(Metrics):
 
     def calculate_stochastic_rsi(
         self, series: pd.Series, n: int=20,
-        ma: str="exponential_moving_average"
+        ma: str="EMA"
     ) -> pd.Series:
         """
         Calculates the stochastic oscillation of the RSI
@@ -718,7 +733,7 @@ class Indicators(Metrics):
         sma of (close - open) / (high - low)
         """
         temp = (df.close - df.open) / (df.high - df.low)
-        bop = self.calculate_simple_moving_average(temp, n)
+        bop = self.calculate_SMA(temp, n)
         bop.name = "Balance of Power"
         return bop
 
@@ -859,7 +874,7 @@ class Indicators(Metrics):
         """
         Calculates the bollinger bands and returns them as a dataframe
         """
-        sma = self.calculate_simple_moving_average(series, n=n)
+        sma = self.calculate_SMA(series, n=n)
         stdev = self.calculate_simple_moving_sample_stdev(series, n=n)
 
         return pd.DataFrame({
@@ -1001,7 +1016,7 @@ class Indicators(Metrics):
         Calculates the ultimate oscillator (google it lol)
         not sure if this is right also (it should be between 0 and 100)
         """
-        helper = self.UltOscHelper(self.calculate_simple_moving_average)
+        helper = self.UltOscHelper(self.calculate_SMA)
         a1 = helper.calculate_a(df, n1)
         a2 = helper.calculate_a(df, n2)
         a3 = helper.calculate_a(df, n3)
@@ -1337,12 +1352,13 @@ class Signals(Indicators):
 # signals testing
 if __name__ == "__main__":
     import pprint
+    import cProfile
     from data_loading import load_SPY_data, load_data_as_pd
     SPY = load_SPY_data()
     AWU = load_data_as_pd("AWU")["close"]
     signals = Signals()
-    indicator_series = signals.calculate_williams_r(AWU)
-    signal_series = signals.create_williams_r_signals(AWU)
-    pprint.pprint(signal_series)
-    pprint.pprint(indicator_series)
-    signals.show_indicator(AWU, indicator_series, signal_series, combine_price_and_indicator=False)
+    cProfile.run("signals.calculate_WMA(AWU)")
+    # cProfile.run("signals.create_MA_signals(AWU, n=20, ma_type='WMA')")
+    # pprint.pprint(signal_series)
+    # pprint.pprint(indicator_series)
+    # signals.show_indicator(AWU, indicator_series, signal_series, combine_price_and_indicator=False)

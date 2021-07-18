@@ -77,7 +77,7 @@ class GridSearchOptimizer(object):
         if self.time_df.empty:
             self.time_df = pd.DataFrame(columns=times_to_add.columns)
         _to_concat = [self.time_df, times_to_add]
-        self.time_df = pd.concat(_to_concat, axis=0).reset_index().drop(columns=["index"])
+        self.time_df = pd.concat(_to_concat, axis=0).reset_index(drop=True)
 
     def optimize(self, signal_ranges: dict, preference_ranges: dict):
         assert signal_ranges and preference_ranges, 'Must provide non-empty parameters.'

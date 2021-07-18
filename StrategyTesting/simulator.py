@@ -296,7 +296,7 @@ class BoundSimulators():
         self.pref_id = self._make_funciton_id(preference_func.__name__)
 
     @staticmethod
-    def _make_funciton_id(function_name: str) -> str:
+    def _make_funciton_id(function_name: str, letters_per_word: int=5) -> str:
         """
         Makes a unique string for each function used as signal / preference 
         splits name on underscores and removes 'calculate' and 'create' keywords
@@ -305,8 +305,8 @@ class BoundSimulators():
         listed = function_name.split("_")[1:]
         _id = ""
         for word in listed:
-            to_concat = 5
-            if len(word) < 5:
+            to_concat = letters_per_word
+            if len(word) < letters_per_word:
                 to_concat = len(word)
             _id = _id + word[:to_concat]
         return _id.upper()
@@ -318,7 +318,8 @@ class BoundSimulators():
         # must be careful when creating the signal_args and preference_args order
         if self.contains_ma_type:
             signal = self.prices.apply(self.signal_func, args=signal_args, ma_type=self.ma_type, axis=0)
-            self.signal_id = self._make_funciton_id(self.ma_type) + self.signal_id
+            if not self.signal_id == self.ma_type + self.signal_id:
+                self.signal_id = self.ma_type + self.signal_id
         else:
             signal = self.prices.apply(self.signal_func, args=signal_args, axis=0)
         preference = self.prices.apply(self.pref_func, args=preference_args, axis=0)

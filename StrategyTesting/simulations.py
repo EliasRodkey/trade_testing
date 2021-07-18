@@ -1,7 +1,6 @@
 #! contains simulation funcitons to run multiple optimizations concurrently
 from multiprocessing import Process
 
-from numpy.lib.npyio import save
 from simulator import BoundSimulators
 from grid_search_optimizer import GridSearchOptimizer
 from ToolKit.signal_generator import Signals
@@ -10,11 +9,8 @@ from ToolKit.signal_generator import Signals
 signals = Signals() 
 
 compatible = [
-            "simple_moving_average",
-            "triangular_moving_average",
-            "weighted_moving_average",
-            "exponential_moving_average",
-            "DEMA", "TEMA"
+            "SMA","TMA","WMA",
+            "EMA","DEMA", "TEMA"
         ]
 
 def simulate_simset(
@@ -49,28 +45,43 @@ def simulate_simset(
     return optimizer
 
 
+if __name__ == "__main__":
+    signal_args = {
+        "signal_n" : range(5, 100, 10),
+        "upper_bound" : range(70, 100, 10),
+        "lower_bound" : range(10, 40, 10)
+    }
+    preference_args = {
+        "preference_n" : range(5, 75, 10)
+    }
 
-signal_args = {
-    "signal_n" : range(5, 100, 10),
-    "upper_bound" : range(70, 100, 10),
-    "lower_bound" : range(10, 40, 10)
-}
-preference_args = {
-    "preference_n" : range(5, 75, 10)
-}
-
-signal_functions =[
-    signals.create_stochastic_oscillator_signals,
-    signals.create_relative_strength_index_signals,
-    signals.create_stochastic_rsi_signals,
-    signals.create_williams_r_signals
-]
-    
-for signal_function in signal_functions:
-    simulate_simset(
-        signal_function,
-        signal_args,
-        signals.calculate_rolling_sharpe_ratio,
-        preference_args,
-        contains_ma_type=False, save_results=True
+    p = Process(
+        target=simulate_simset, 
+        args=(
+            signals.create_stochastic_rsi_signals,
+            signal_args, signals.calculate_rolling_sharpe_ratio,
+            preference_args
+            ),
+        kwargs ={
+            "contains_ma_type" : True,
+            "ma_types" : [compatible[2]],
+            "maxpos_range" : range(20, 25, 5),
+            "save_results" : True
+        }
     )
+    p.start()
+
+    # p = Process(
+    #     target=simulate_simset, 
+    #     args=(
+    #         signals.create_stochastic_rsi_signals,
+    #         signal_args, signals.calculate_rolling_sharpe_ratio,
+    #         preference_args
+    #         ),
+    #     kwargs ={
+    #         "contains_ma_type" : True,
+    #         "ma_types" : compatible[3:],
+    #         "save_results" : True
+    #     }
+    # )
+    # p.start()
