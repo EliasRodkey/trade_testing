@@ -6,22 +6,13 @@
 # by the optimizer which then returns data on the most successful parameters
 
 import os
-import sys
 import datetime
 from time import perf_counter
-from ToolKit.signal_generator import Signals 
-from ToolKit.data_loading import load_eod_matrix, get_all_symbols
-from ToolKit.log_window import Ui_MainWindow
+from ToolKit.data_loading import RESULTS_PATH
 import pandas as pd
 import numpy as np
-from collections import OrderedDict
 from itertools import product
-from reprint import output
-from typing import Dict, Tuple, List, Callable, Iterable, Any, NewType, Mapping
-
-import matplotlib.pyplot as plt
-from matplotlib import cm 
-from mpl_toolkits.mplot3d import Axes3D 
+from typing import Dict, List, Callable, Iterable, Any, NewType, Mapping
 
 # Simulation function must take parameters as keyword arguments pointing to 
 # iterables and return a performance metric dictionary
@@ -178,100 +169,6 @@ class GridSearchOptimizer(object):
         print('Summary statistics')
         print(df[metric_names].describe().T)
 
-    def plot_1d_hist(self, x, show=True):
-        self.results.hist(x)
-        if show:
-            plt.show()
-
-    def plot_2d_line(self, x, y, show=True, **filter_kwargs):
-        _results = self.results
-        for k, v in filter_kwargs.items():
-            _results = _results[getattr(_results, k) == v]
-
-        ax = _results.plot(x, y)
-        if filter_kwargs:
-            k_str = ', '.join([f'{k}={v}' for k,v in filter_kwargs.items()])
-            ax.legend([f'{x} ({k_str})'])
-
-        if show:
-            plt.show()
-
-    def plot_2d_violin(self, x, y, show=True):
-        """
-        Group y along x then plot violin charts
-        """
-        x_values = self.results[x].unique()
-        x_values.sort()
-
-        y_by_x = OrderedDict([(v, []) for v in x_values])
-        for _, row in self.results.iterrows():
-            y_by_x[row[x]].append(row[y])
-
-        fig, ax = plt.subplots()
-
-        ax.violinplot(dataset=list(y_by_x.values()), showmedians=True)
-        ax.set_xlabel(x)
-        ax.set_ylabel(y)
-        ax.set_xticks(range(0, len(y_by_x)+1))
-        ax.set_xticklabels([''] + list(y_by_x.keys()))
-        if show:
-            plt.show()
-
-    def plot_3d_mesh(self, x, y, z, show=True, **filter_kwargs):
-        """
-        Plot interactive 3d mesh. z axis should typically be performance metric
-        """
-        _results = self.results
-        fig = plt.figure()
-        ax = Axes3D(fig)
-
-        for k, v in filter_kwargs.items():
-            _results = _results[getattr(_results, k) == v]
-
-        X, Y, Z = [getattr(_results, attr) for attr in (x, y, z)]
-        ax.plot_trisurf(X, Y, Z, cmap=cm.jet, linewidth=0.2)
-        ax.set_xlabel(x)
-        ax.set_ylabel(y)
-        ax.set_zlabel(z)
-        if show:
-            plt.show()
-
-    def plot(self, *attrs: Tuple[str], show=True, 
-        **filter_kwargs: Dict[str, Any]):
-        """
-        Attempt to intelligently dispatch plotting functions based on the number
-        and type of attributes. Last argument should typically be the 
-        performance metric.
-        """
-        self._assert_finished()
-        param_names = self.param_names
-        metric_names = self.metric_names
-
-        if len(attrs) == 3:
-            assert attrs[0] in param_names and attrs[1] in param_names, \
-                'First two positional arguments must be parameter names.'
-
-            assert attrs[2] in metric_names, \
-                'Last positional argument must be a metric name.'
-
-            assert len(filter_kwargs) + 2 == len(param_names), \
-                'Must filter remaining parameters. e.g. p_three=some_number.'
-
-            self.plot_3d_mesh(*attrs, show=show, **filter_kwargs)
-
-        elif len(attrs) == 2:
-            if len(param_names) == 1 or filter_kwargs:
-                self.plot_2d_line(*attrs, show=show, **filter_kwargs)
-
-            elif len(param_names) > 1:
-                self.plot_2d_violin(*attrs, show=show)
-
-        elif len(attrs) == 1:
-            self.plot_1d_hist(*attrs, show=show)
-
-        else:
-            raise ValueError('Must pass between one and three column names.')
-    
     def make_metadata_dict(self, sim_class):
         # Creates a dictionary with all of the meta information about the optimization
         # this information is condensed in the simulation ID but is also included
@@ -291,11 +188,12 @@ class GridSearchOptimizer(object):
         signal, pref = list(sim_class.params)
         _params = f"{signal}_{pref}"
         _date = datetime.datetime.now().strftime("%y%m%d")
-        count = 0
-        iterator = f"_{count}"
-        while os.path.exists(f"StrategyTesting\\optimization_results\\{_params}_{_date}{iterator}.csv"):
-            count += 1
-            iterator = f"_{count}"
+        iterator = 0
+        base_ID = f"{_params}_{_date}"
+        save_path = os.path.join(RESULTS_PATH, f"{base_ID}_{iterator}.csv")
+        while os.path.exists(save_path):
+            iterator += 1
+            save_path = os.path.join(RESULTS_PATH, f"{base_ID}_{iterator}.csv")
         return f"{_params}_{_date}{iterator}"
 
     @property
@@ -330,7 +228,11 @@ class GridSearchOptimizer(object):
 
     def add_to_compiled_results(self):
         # adds compilation of results to "compiled_results" file
-        compiled_results_path = os.path.join("StrategyTesting", "compiled_results.csv")
+        compiled_results_path = os.path.join(
+            "StrategyTesting", 
+            "optimization_results", 
+            "compiled_results.csv"
+        )
         try:
             old_results = pd.read_csv(compiled_results_path)
             new_results = pd.concat(
@@ -342,8 +244,11 @@ class GridSearchOptimizer(object):
 
     def save_results(self):
         # saves the results of the grid search optomization to a CSV file 
-        self.add_to_compiled_results()
-        simset_path = os.path.join("StrategyTesting", "optimization_results", f"{self.ID}.csv")
+        # self.add_to_compiled_results()
+        results_dir = os.path.join("StrategyTesting", "optimization_results", f"{self.ID[:-2]}")
+        if not os.path.exists(results_dir):
+            os.mkdir(results_dir)
+        simset_path = os.path.join(results_dir, f"{self.ID}.csv")
         self.results.to_csv(simset_path)
 
 

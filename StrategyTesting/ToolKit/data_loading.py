@@ -86,69 +86,25 @@ def concatenate_metrics(df_by_metric: Dict[str, pd.DataFrame]) -> pd.DataFrame:
 
     return df
     
-def list_results_files(as_id: bool=False, as_filename: bool=False, as_path: bool=False) -> list:
-    # walks the optimization_results directory and returns the simset ids in a list
-    for _, _, filenames in os.walk(RESULTS_PATH):
-        res = filenames
-    if as_filename:
-        return res
-    elif as_id:
-        return [filename.replace(".csv", "") for filename in res]
-    elif as_path:
-        return [os.path.join(RESULTS_PATH, filename) for filename in filenames]
 
+def list_results_dirs() -> list:
+    # creates a list of all of the relative paths to the subfolders
+    # in "opimization_results" that house results
+    for folder, subfolders, filenames in os.walk(RESULTS_PATH):
+        return subfolders
 
-def list_unmerged_files(as_id: bool=False, as_filename: bool=False, as_path: bool=False)-> List:
-    # lists all files in results that contain iterator element indicating they are unmerged
-    simset_ids = list_results_files(as_id=True)
-    unmerged = []
-    for simset_id in simset_ids:
-        if len(simset_id.split("_")) == 4:
-            unmerged.append(simset_id)
-    if as_id:
-        return unmerged
-    elif as_filename:
-        return [f"{simset_id}.csv" for simset_id in unmerged]
-    elif as_path:
-        return [os.path.join(RESULTS_PATH, f"{simset_id}.csv") for simset_id in unmerged]
-        
-def remove_iterator(simset_id: str, include_date: bool=False) -> str:
-    # takes a simset_id as an input and returns the same ID without 
-    # the iterator element
-    x = -1 if include_date else -2
-    res = simset_id.split("_")[:x]
-    return "_".join(res)
-
-def date_hash_from_ID(ID: str, from_path: bool=False) -> str:
-    # takes simset ID and returns the date portion as a string
-    if not from_path:
-        components = ID.split("_")
-        return components[2]
-    else:
-        ID = os.path.basename(ID)
-        components = ID.replace(".csv", "").split("_")
-        return components[2]
-
-def group_unmerged_files(include_date: bool=False):
-    # groups together files that have been unmerged by their simset_id
-    unmerged = list_unmerged_files(as_id=True)
-    groups = {}
-    for simset_id in unmerged:
-        keys = list(groups.keys())
-        real_id = remove_iterator(simset_id, include_date=include_date)
-        if not real_id in keys:
-            groups[real_id] = [os.path.join(RESULTS_PATH, f"{simset_id}.csv")]
+def unmerged_files_dict() -> dict:
+    # created a dictionary of the results folders as keys and the unmerged filenames as a list
+    # of values
+    dictionary = {}
+    for folder, subfolder, filenames in os.walk(RESULTS_PATH):
+        if folder == RESULTS_PATH:
+            continue
         else:
-            groups[real_id].append(os.path.join(RESULTS_PATH, f"{simset_id}.csv"))
-    return groups
-
-def add_date_to_grouped_files(grouped_files_dict: dict) -> dict:
-    # takes the date portion from the first item in the list of each
-    # generalized dictionary entry and adds it to the key
-    for key in list(grouped_files_dict.keys()):
-        date_hash = date_hash_from_ID(grouped_files_dict[key][0], from_path=True)
-        grouped_files_dict[f"{key}_{date_hash}"] = grouped_files_dict.pop(key)
-    return grouped_files_dict
+            dictionary[folder] = [
+                i for i in filenames if i.replace(".csv", "") != os.path.basename(folder) and i[-4:] == ".csv"
+            ]
+    return dictionary
 
 def display_files_to_merge(file_list: list):
     # shows a list of files nicely that are about to be merged
@@ -168,29 +124,33 @@ def verify_merge() -> bool:
     else:
         return "merge not verified, files not merged\n\n"
 
-def execute_file_merge(filename, file_list: list, delete_old:bool=False):
+def execute_file_merge(filename_path: str, file_list: list, delete_old:bool=False):
     # executes the merging of files verified by user
     dfs_to_merge = []
+    print(filename_path)
     for file_path in file_list:
-        dfs_to_merge.append(pd.read_csv(file_path))
+        dfs_to_merge.append(pd.read_csv(os.path.join(filename_path, file_path)))
     merged_df = pd.concat(dfs_to_merge, axis=0).reset_index(drop=True)
-    merged_df.to_csv(os.path.join(RESULTS_PATH, filename))
+    new_file = os.path.join(filename_path, f"{os.path.basename(filename_path)}.csv")
+    iterator = 0
+    while os.path.exists(new_file):
+        new_file = os.path.join(filename_path, f"{os.path.basename(filename_path)}_{iterator}.csv")
+        iterator += 1
+    merged_df.to_csv(new_file)
     if delete_old:
-        for filepath in file_list:
+        for filepath in [os.path.join(filename_path, filename) for filename in file_list]:
             send2trash(filepath)
     print("files merged\n\n")
 
 def merge_ungrouped_files(delete_old:bool=False):
     # creates user dialogue which clarifies which files will be merged and
     # verifies each set of files to ensure correct execution
-    groups = group_unmerged_files()
-    with_date = add_date_to_grouped_files(groups)
-    for real_id in list(with_date.keys()):
-        file_list = with_date[real_id]
+    for filename_path, file_list in unmerged_files_dict().items():
         display_files_to_merge(file_list)
-        verified = verify_merge() 
+        if not file_list == []:
+            verified = verify_merge() 
         if verified:
-            execute_file_merge(f"{real_id}.csv", file_list, delete_old)
+            execute_file_merge(filename_path, file_list, delete_old)
         else:
             print("files not merged\n\n")
     print("done")
@@ -198,5 +158,5 @@ def merge_ungrouped_files(delete_old:bool=False):
     
 # laoding data usage
 if __name__ == "__main__":
-    merge_ungrouped_files(delete_old=True)
+    merge_ungrouped_files()
     
