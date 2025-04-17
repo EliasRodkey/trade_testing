@@ -66,7 +66,7 @@ if __name__ == "__main__":
             "contains_ma_type" : True,
             "ma_types" : [compatible[2]],
             "maxpos_range" : range(20, 25, 5),
-            "save_results" : True
+            "save_results" : False
         }
     )
     p.start()
