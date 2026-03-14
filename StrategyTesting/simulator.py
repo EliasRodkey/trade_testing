@@ -1,3 +1,10 @@
+"""
+simulator.py - Trading simulation engine for backtesting strategies against historical price data.
+
+Classes:
+    SimpleSimulator: Executes a trading strategy loop over price, signal, and preference DataFrames.
+    BoundSimulators: Wraps SimpleSimulator with signal/preference functions for grid search optimization.
+"""
 from typing import Tuple, List, Dict, Callable, Iterable
 import pandas as pd
 import numpy as np
@@ -9,11 +16,24 @@ from collections import OrderedDict
 
 class SimpleSimulator(object):
     """
-    A simple trading simulator to work with the PortfolioHistory class
+    Executes a trading strategy against historical price data.
+
+    Manages cash, open positions, slippage, and trade fees over the simulation period.
+    Results are stored in a PortfolioHistory instance accessible after simulate() completes.
     """
 
     def __init__(self, initial_cash: float=10000, max_active_positions: int=5,
-        percent_slippage: float=0.0005, trade_fee: float=1):
+                 percent_slippage: float=0.0005, trade_fee: float=1):
+        """
+        Initializes the simulator with trading parameters.
+
+        Args:
+            initial_cash (float): Starting capital in dollars. Defaults to 10000.
+            max_active_positions (int): Maximum number of simultaneously held positions. Defaults to 5.
+            percent_slippage (float): Fraction of price added/subtracted on buy/sell to simulate
+                                      market order slippage. Defaults to 0.0005 (0.05%).
+            trade_fee (float): Fixed dollar fee per trade. Defaults to 1.
+        """
 
         ### Set simulation parameters
 
@@ -41,18 +61,26 @@ class SimpleSimulator(object):
         self.simulation_finished = False
 
     @property
-    def active_positions_count(self):
+    def active_positions_count(self) -> int:
+        """Number of currently open positions."""
         return len(self.active_positions_by_symbol)
 
     @property
-    def free_position_slots(self):
+    def free_position_slots(self) -> int:
+        """Number of additional positions that can be opened before hitting the max."""
         return self.max_active_positions - self.active_positions_count
 
     @property
     def active_symbols(self) -> List[Symbol]:
         return list(self.active_positions_by_symbol.keys())
 
-    def print_initial_parameters(self):
+    def print_initial_parameters(self) -> str:
+        """
+        Prints and returns a formatted string of the simulator's configuration parameters.
+
+        Returns:
+            str: Formatted string with initial cash, max positions, slippage, and trade fee.
+        """
         s = f'Initial Cash: ${self.initial_cash} \n' \
             f'Maximum Number of Assets: {self.max_active_positions}\n' \
             f'Slipage: {self.percent_slippage}%\n' \
@@ -76,9 +104,15 @@ class SimpleSimulator(object):
         return lambda symbol, metric: tuple_lookup[(symbol, metric)]
 
     @staticmethod
-    def make_all_valid_lookup(_idx: Callable):
+    def make_all_valid_lookup(_idx: Callable) -> Callable:
         """
-        Return a function that checks for valid data, given a lookup function
+        Returns a function that checks whether all required data columns are valid for a symbol.
+
+        Args:
+            _idx (Callable): Column index lookup function from make_tuple_lookup.
+
+        Returns:
+            Callable: Function (row, symbol) -> bool, True if price, signal, and pref are all non-NaN.
         """
         return lambda row, symbol: (
             not pd.isna(row[_idx(symbol, 'pref')]) and \
@@ -86,10 +120,20 @@ class SimpleSimulator(object):
             not pd.isna(row[_idx(symbol, 'price')])
         )
 
-    def buy_to_open(self, symbol, date, price):
+    def buy_to_open(self, symbol: Symbol, date: pd.Timestamp, price: float) -> None:
         """
-        Keep track of new position, make sure it isn't an existing position. 
-        Verify you have cash.
+        Opens a new long position, spending an equal share of available cash.
+
+        Applies slippage and trade fee. Ends simulation early if cash is insufficient.
+
+        Args:
+            symbol (Symbol): Ticker symbol to buy.
+            date (pd.Timestamp): Date of the transaction.
+            price (float): Current market price per share.
+
+        Raises:
+            AssertionError: If the symbol is already an active position.
+            AssertionError: If spending would result in negative cash.
         """
         if self.simulation_finished:
             return
@@ -120,12 +164,17 @@ class SimpleSimulator(object):
         position = Position(symbol, date, purchase_price, shares)
         positions_by_symbol[symbol] = position
 
-    def sell_to_close(self, symbol, date, price):
+    def sell_to_close(self, symbol: Symbol, date: pd.Timestamp, price: float) -> None:
         """
-        Keep track of exit price, recover cash, close position, and record it in
-        portfolio history.
+        Closes an active position, recovers cash, and records it in portfolio history.
 
-        Will raise a KeyError if symbol isn't an active position
+        Args:
+            symbol (Symbol): Ticker symbol to sell.
+            date (pd.Timestamp): Date of the transaction.
+            price (float): Current market price per share.
+
+        Raises:
+            KeyError: If symbol is not currently an active position.
         """
 
         # Exit the position
@@ -144,19 +193,36 @@ class SimpleSimulator(object):
         del positions_by_symbol[symbol]
     
     @staticmethod
-    def _assert_equal_columns(*args: Iterable[pd.DataFrame]):
+    def _assert_equal_columns(*args: Iterable[pd.DataFrame]) -> None:
+        """
+        Asserts that all provided DataFrames have identical column sets.
+
+        Args:
+            *args (Iterable[pd.DataFrame]): Two or more DataFrames to compare.
+
+        Raises:
+            AssertionError: If any DataFrame has a different set of column names.
+        """
         column_names = set(args[0].columns.values)
         for arg in args[1:]:
             assert set(arg.columns.values) == column_names, \
                 'Found unequal column names in input data frames.'
 
-    def simulate(self, price: pd.DataFrame, signal: pd.DataFrame, 
-        preference: pd.DataFrame):
+    def simulate(self, price: pd.DataFrame, signal: pd.DataFrame,
+                 preference: pd.DataFrame) -> None:
         """
-        Runs the simulation.
+        Runs the full trading simulation over the provided DataFrames.
 
-        price, signal, and preference are data frames with the column names 
-        represented by the same set of stock symbols.
+        Iterates day-by-day over all symbols, executing sells on sell signals,
+        then buys on buy signals ranked by preference. Uses itertuples for performance.
+
+        Args:
+            price (pd.DataFrame): Date-indexed DataFrame of close prices, one column per symbol.
+            signal (pd.DataFrame): Date-indexed DataFrame of signals (1=buy, -1=sell, 0=hold).
+            preference (pd.DataFrame): Date-indexed DataFrame of preference scores for ranking buys.
+
+        Raises:
+            AssertionError: If price, signal, and preference do not share the same column set.
         """
         _sale_times = []
         _buy_times = []
@@ -278,12 +344,30 @@ class SimpleSimulator(object):
 
 
 class BoundSimulators():
+    """
+    Binds signal and preference functions to a SimpleSimulator for use in grid search optimization.
+
+    Loads all available price data on construction and applies the provided signal and preference
+    functions via DataFrame.apply() each time simulate() is called. Supports MA-type variation
+    by injecting ma_type as a keyword argument to the signal function.
+    """
+
     def __init__(
-        self, signal_func: Callable, 
+        self, signal_func: Callable,
         preference_func: Callable,
         contains_ma_type: bool=False,
         **sim_kwargs
     ):
+        """
+        Initializes BoundSimulators, loads all symbol data, and stores function references.
+
+        Args:
+            signal_func (Callable): Function applied column-wise to the price DataFrame to
+                                    generate buy/sell signals.
+            preference_func (Callable): Function applied column-wise to generate preference scores.
+            contains_ma_type (bool): If True, passes ma_type as a kwarg to signal_func. Defaults to False.
+            **sim_kwargs: Keyword arguments forwarded to SimpleSimulator (e.g., max_active_positions).
+        """
         symbols = get_all_symbols()
         self.prices = load_eod_matrix(symbols)
         self.max_posiitons = sim_kwargs["max_active_positions"]
@@ -314,8 +398,16 @@ class BoundSimulators():
     def simulate(
         self, signal_args: tuple, preference_args: tuple
     ) -> pd.DataFrame:
-        # generic bound simulated funciton that can take multiple changing variables
-        # must be careful when creating the signal_args and preference_args order
+        """
+        Runs a single simulation with the given signal and preference arguments.
+
+        Args:
+            signal_args (tuple): Positional arguments passed to signal_func (excluding the series).
+            preference_args (tuple): Positional arguments passed to preference_func.
+
+        Returns:
+            pd.DataFrame: Performance metric DataFrame from PortfolioHistory.performance_metric_data.
+        """
         if self.contains_ma_type:
             signal = self.prices.apply(self.signal_func, args=signal_args, ma_type=self.ma_type, axis=0)
             if not self.signal_id == self.ma_type + self.signal_id:

@@ -3,3 +3,4 @@ numpy
 matplotlib
 scikit-learn
 send2trash
+alpha_vantage
