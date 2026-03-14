@@ -1,9 +1,14 @@
-#! python3
-# 
-# optimizer_001.py - first simulation optimizer.
-# GridSearOptomize given input of a simulation funciton. the .optomize function
-# is called with a dicitonary of iterables which are tried in all combinations
-# by the optimizer which then returns data on the most successful parameters
+"""
+grid_search_optimizer.py - Grid search optimization engine for backtesting strategy parameter tuning.
+
+Classes:
+    OptimizationResult: Container for a single simulation's parameters, metadata, and performance.
+    GridSearchOptimizer: Iterates over all combinations of signal and preference parameter ranges,
+                         collects results, and saves them to CSV.
+
+Variables:
+    SimKwargs: NewType alias for a mapping of parameter names to iterables of values.
+"""
 
 import os
 import datetime
@@ -20,10 +25,24 @@ SimKwargs = NewType('Kwargs', Mapping[str, Iterable[Any]])
 
 
 class OptimizationResult(object):
-    """Simple container class for optimization data"""
+    """
+    Simple container for a single simulation run's parameters, performance metrics, and metadata.
+
+    Combines all three into a single row DataFrame via the combined property for easy aggregation.
+    """
 
     def __init__(self, parameters: Dict[str, int], performance: pd.DataFrame, metadata: Dict):
+        """
+        Initializes an OptimizationResult and validates no name collisions exist.
 
+        Args:
+            parameters (Dict[str, int]): Parameter name-value pairs used in this simulation run.
+            performance (pd.DataFrame): Single-row DataFrame of performance metrics from PortfolioHistory.
+            metadata (Dict): Simulation metadata (e.g., signal type, date, max positions).
+
+        Raises:
+            AssertionError: If any key in parameters also appears in performance.
+        """
         # Make sure no collisions between performance metrics and params
         assert len(parameters.keys() & performance.keys()) == 0, \
             'parameter name matches performance metric name'
@@ -34,6 +53,15 @@ class OptimizationResult(object):
 
     @staticmethod
     def as_pd(params: Dict[str, int]) -> pd.DataFrame:
+        """
+        Wraps a dictionary as a single-row DataFrame.
+
+        Args:
+            params (Dict[str, int]): Key-value pairs to convert.
+
+        Returns:
+            pd.DataFrame: Single-row DataFrame with dict keys as columns.
+        """
         return pd.DataFrame(params, index=[0])
 
     @property
@@ -50,7 +78,15 @@ class GridSearchOptimizer(object):
     """
 
     def __init__(self, simulation_function: Callable, save_results: bool=True):
+        """
+        Initializes the optimizer with a simulation function and output settings.
 
+        Args:
+            simulation_function (Callable): A callable matching the BoundSimulators.simulate
+                                            signature: (signal_args, preference_args) -> (sim, results).
+            save_results (bool): If True, saves the results DataFrame to CSV after optimize() completes.
+                                 Defaults to True.
+        """
         self.simulate = simulation_function
         self._results_list: List[OptimizationResult] = list()
         self.time_df = pd.DataFrame()
@@ -60,17 +96,46 @@ class GridSearchOptimizer(object):
 
         self._optimization_finished = False
 
-    def add_results(self, parameters: Dict[str, int], performance: pd.DataFrame, metadata: Dict):
+    def add_results(self, parameters: Dict[str, int], performance: pd.DataFrame, metadata: Dict) -> None:
+        """
+        Wraps parameters, performance, and metadata into an OptimizationResult and appends it.
+
+        Args:
+            parameters (Dict[str, int]): Parameter name-value pairs for this simulation run.
+            performance (pd.DataFrame): Performance metric DataFrame from PortfolioHistory.
+            metadata (Dict): Simulation metadata (signal type, date, max positions, etc.).
+        """
         _results = OptimizationResult(parameters, performance, metadata)
         self._results_list.append(_results.combined)
     
-    def _add_to_time_df(self, times_to_add: pd.DataFrame):
+    def _add_to_time_df(self, times_to_add: pd.DataFrame) -> None:
+        """
+        Appends a timing row to the internal time tracking DataFrame.
+
+        Args:
+            times_to_add (pd.DataFrame): Single-row DataFrame with 'total_time' and
+                                         'total_time_elapsed' columns.
+        """
         if self.time_df.empty:
             self.time_df = pd.DataFrame(columns=times_to_add.columns)
         _to_concat = [self.time_df, times_to_add]
         self.time_df = pd.concat(_to_concat, axis=0).reset_index(drop=True)
 
-    def optimize(self, signal_ranges: dict, preference_ranges: dict):
+    def optimize(self, signal_ranges: dict, preference_ranges: dict) -> None:
+        """
+        Runs the full grid search over all combinations of signal and preference parameters.
+
+        Iterates the Cartesian product of all provided ranges, calls the simulation function
+        for each combination, collects results, and (if save=True) writes them to CSV.
+        Prints a progress log after each simulation beyond the first.
+
+        Args:
+            signal_ranges (dict): Mapping of signal parameter names to iterables of values.
+            preference_ranges (dict): Mapping of preference parameter names to iterables of values.
+
+        Raises:
+            AssertionError: If either signal_ranges or preference_ranges is empty.
+        """
         assert signal_ranges and preference_ranges, 'Must provide non-empty parameters.'
 
         # Convert all iterables to lranges
@@ -147,7 +212,13 @@ class GridSearchOptimizer(object):
         if self.save:
             self.save_results()
 
-    def _assert_finished(self):
+    def _assert_finished(self) -> None:
+        """
+        Asserts that optimize() has been called before accessing results-dependent methods.
+
+        Raises:
+            AssertionError: If optimize() has not yet completed.
+        """
         assert self._optimization_finished, \
             'Run self.optimize before accessing this method.'
 
@@ -162,17 +233,25 @@ class GridSearchOptimizer(object):
 
         return self._results
 
-    def print_summary(self):
+    def print_summary(self) -> None:
+        """Prints descriptive statistics for all performance metrics across all simulation runs."""
         df = self.results
         metric_names = self.metric_names
 
         print('Summary statistics')
         print(df[metric_names].describe().T)
 
-    def make_metadata_dict(self, sim_class):
-        # Creates a dictionary with all of the meta information about the optimization
-        # this information is condensed in the simulation ID but is also included
-        # in the results to easily reference simulation types etc
+    def make_metadata_dict(self, sim_class: object) -> None:
+        """
+        Populates self._metadata with identifying information about the simulation run.
+
+        Stores signal/preference IDs, max_positions, and the current date. Called once
+        per simulation run inside optimize().
+
+        Args:
+            sim_class (object): A BoundSimulators instance with a params attribute and
+                                max_active_positions attribute.
+        """
         signal, pref = list(sim_class.params)
         _dict = {
             "id" : self.ID,
@@ -201,9 +280,8 @@ class GridSearchOptimizer(object):
         return self._make_id(self.sim)
 
     @property
-    def winning_sim_ratio(self) -> int:
-        # returns the ratio of winning (beating the market return) simualtions
-        # as a percentage
+    def winning_sim_ratio(self) -> float:
+        """Fraction of simulations whose percent_return exceeded the SPY benchmark return."""
         simset = self.results
         filt = simset["percent_return"] > simset["spy_percent_return"]
         number_winning = simset[filt].shape[0]
@@ -211,8 +289,15 @@ class GridSearchOptimizer(object):
         return ratio
 
     def compile_simset(self) -> pd.DataFrame:
-        # returns the mean metrics along with information about how many sets beat
-        # the spy returns
+        """
+        Returns a single-row DataFrame summarizing the simulation set.
+
+        Includes mean values for all performance metrics, edge score standard deviation,
+        total simulation count, percent of simulations beating SPY, and the simset ID.
+
+        Returns:
+            pd.DataFrame: Single-row summary DataFrame.
+        """
         meta = self.results.describe()
         meta.drop(columns=self.param_names, inplace=True)
         compiled = meta.loc["mean"]
@@ -224,10 +309,16 @@ class GridSearchOptimizer(object):
 
     @property
     def compiled(self) -> pd.DataFrame:
-        return self.compile_simset()        
+        """Single-row summary DataFrame for this simulation set. See compile_simset."""
+        return self.compile_simset()
 
-    def add_to_compiled_results(self):
-        # adds compilation of results to "compiled_results" file
+    def add_to_compiled_results(self) -> None:
+        """
+        Appends this simulation set's compiled summary row to the shared compiled_results.csv.
+
+        Creates the file if it does not exist. Reads the existing file, concatenates the new
+        row, and overwrites.
+        """
         compiled_results_path = os.path.join(
             "StrategyTesting", 
             "optimization_results", 
@@ -242,8 +333,13 @@ class GridSearchOptimizer(object):
         except:
             self.compiled.to_csv(compiled_results_path)
 
-    def save_results(self):
-        # saves the results of the grid search optomization to a CSV file 
+    def save_results(self) -> None:
+        """
+        Saves the full results DataFrame to a CSV file in the optimization_results directory.
+
+        Creates a subdirectory named after the simulation set ID if it does not already exist,
+        then writes the results DataFrame to a CSV file within it.
+        """
         # self.add_to_compiled_results()
         results_dir = os.path.join("StrategyTesting", "optimization_results", f"{self.ID[:-2]}")
         if not os.path.exists(results_dir):

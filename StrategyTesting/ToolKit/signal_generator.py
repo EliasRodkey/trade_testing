@@ -1,4 +1,14 @@
 #!python3
+"""
+signal_generator.py - Technical indicators, financial metrics, and trading signal generators.
+
+Classes:
+    Metrics: Financial performance metrics (returns, volatility, drawdown, Sharpe, alpha/beta).
+    Indicators: Technical indicators (moving averages, oscillators, volume metrics).
+                Inherits from Metrics.
+    Signals: Buy/sell signal generators derived from technical indicators.
+             Inherits from Indicators.
+"""
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, Callable
@@ -7,27 +17,19 @@ from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 
 
-# Metrics - carries class with various stock performance matrics
-# based on price variations that attempt to quantify performance
-# in relation to risk or to a baseline market.
-#
-# supported metrics:
-# log or percent return series,
-# annualized volatility (%)
-# compounded annual growth rate (CAGR)
-# annualized downside deviation
-# Sharpe ratio
-# Rolling sharpe ratio
-# Sortino ratio
-# drawdown series
-# max drawdown (with metadata and as log if desired)
-# Calmar ratio
-# pure profit score
-# alpha
-
-
 class Metrics():
+    """
+    Financial performance metrics for price and return series.
+
+    Calculates return series, volatility, CAGR, Sharpe ratio, rolling Sharpe ratio,
+    annualized downside deviation, Sortino ratio, drawdown series, max drawdown (with
+    metadata), log max drawdown ratio, Calmar ratio, pure profit score, Jensen's alpha,
+    beta, alpha, and R-squared relative to a benchmark.
+    """
     def __init__(self):
+        """
+        Initializes Metrics with available drawdown evaluator methods mapped by name.
+        """
         self.return_series_types = ["log", "percent"]
         # self.DRAWDOWN_EVALUATORS: Dict[str, Callable] = {
         #     'dollar': lambda price, peak: peak - price,
@@ -42,37 +44,79 @@ class Metrics():
         }
 
     @staticmethod
-    def dollar_drawdown(price, peak) -> float:
-        # returns the dollar drawdown value of a peak and current price
+    def dollar_drawdown(price: float, peak: float) -> float:
+        """
+        Calculates the dollar drawdown from a peak price.
+
+        Args:
+            price (float): Current price.
+            peak (float): Peak price reached prior to the current price.
+
+        Returns:
+            float: Dollar difference between peak and current price.
+        """
         return peak - price
-    
+
     @staticmethod
-    def percent_drawdown(price, peak) -> float:
-        # returns the percent drawdown value of a peak and current price
+    def percent_drawdown(price: float, peak: float) -> float:
+        """
+        Calculates the percent drawdown from a peak price.
+
+        Args:
+            price (float): Current price.
+            peak (float): Peak price reached prior to the current price.
+
+        Returns:
+            float: Percent drawdown as a positive decimal (e.g., 0.1 for 10% drawdown).
+        """
         return -((price / peak) - 1)
 
     @staticmethod
-    def log_drawdown(price, peak) -> float:
-        # returns the log drawdown value of a peak and current price
+    def log_drawdown(price: float, peak: float) -> float:
+        """
+        Calculates the log drawdown from a peak price.
+
+        Args:
+            price (float): Current price.
+            peak (float): Peak price reached prior to the current price.
+
+        Returns:
+            float: Log drawdown (log(peak) - log(price)).
+        """
         return np.log(peak) - np.log(price)
 
     @staticmethod
     def calculate_return_series(series: pd.Series) -> pd.Series:
-        # Calculates the return series of a time series.
-        # The first value will always be NaN.
-        # Output series retains the index of the input series.
+        """
+        Calculates the period-over-period return series of a price series.
+
+        The first value will always be NaN. Output series retains the index of the input.
+
+        Args:
+            series (pd.Series): Date-indexed price series.
+
+        Returns:
+            pd.Series: Return series (e.g., 0.01 for 1% gain in a period).
+        """
         shifted_series = series.shift(1, axis=0)
         return series / shifted_series - 1
     
     @staticmethod
     def calculate_percent_return(series: pd.Series) -> float:
+        """
+        Calculates the total percent return from the first to the last value of a series.
+
+        Args:
+            series (pd.Series): Date-indexed price series.
+
+        Returns:
+            float: Percent return as a decimal (e.g., 0.25 for 25%).
+        """
         return series.iloc[-1] / series.iloc[0] - 1
     
     @staticmethod
     def calculate_log_return_series(series: pd.Series) -> pd.Series:
-        """
-        Same as calculate_return_series but with log returns
-        """
+        """Same as calculate_return_series but with log returns"""
         shifted_series = series.shift(1, axis=0)
         return pd.Series(np.log(series / shifted_series))
     
@@ -86,6 +130,7 @@ class Metrics():
         end_date = series.index[-1]
         return (end_date - start_date).days / 365.25
     
+
     def calculate_annualized_volatility(self, return_series: pd.Series) -> float:
         """
         Calculates annualized volatility for a date-indexed return series. 
@@ -95,6 +140,7 @@ class Metrics():
         entries_per_year = return_series.shape[0] / years_past
         return return_series.std() * np.sqrt(entries_per_year)
     
+
     def calculate_cagr(self, series: pd.Series) -> float:
         """
         Calculate compounded annual growth rate
@@ -105,6 +151,7 @@ class Metrics():
         if type(res) != np.float64:
             print(f"value factor: {value_factor}\nyears past: {year_past}\nres: {res}")
         return res
+
 
     def calculate_sharpe_ratio(
         self, price_series: pd.Series, 
@@ -121,6 +168,7 @@ class Metrics():
             return None
         return (cagr - benchmark_rate) / volatility
     
+
     def calculate_rolling_sharpe_ratio(
         self, price_series: pd.Series,n: float=20
     ) -> pd.Series:
@@ -130,6 +178,7 @@ class Metrics():
         """
         rolling_return_series = self.calculate_return_series(price_series).rolling(n)
         return rolling_return_series.mean() / rolling_return_series.std()
+
 
     def calculate_annualized_downside_deviation(
         self, return_series: pd.Series, 
@@ -155,33 +204,32 @@ class Metrics():
 
         return downside_deviation * np.sqrt(entries_per_year)
 
+
     def calculate_sortino_ratio(
         self, price_series: pd.Series, 
         benchmark_rate: float=0
     ) -> float:
-        """
-        Calculates the sortino ratio.
-        """
+        """Calculates the sortino ratio."""
+
         cagr = self.calculate_cagr(price_series)
         return_series = self.calculate_return_series(price_series)
         downside_deviation = self.calculate_annualized_downside_deviation(return_series)
         return (cagr - benchmark_rate) / downside_deviation
 
+
     def calculate_drawdown_series(self, series: pd.Series, method: str='log') -> pd.Series:
-        """
-        Returns the drawdown series
-        """
+        """Returns the drawdown series"""
         assert method in self.DRAWDOWN_EVALUATORS, \
             f'Method "{method}" must by one of {list(self.DRAWDOWN_EVALUATORS.keys())}'
 
         evaluator = self.DRAWDOWN_EVALUATORS[method]
         return evaluator(series, series.cummax())
 
+
     def calculate_max_drawdown(self, series: pd.Series, method: str='log') -> float:
-        """
-        Simply returns the max drawdown as a float
-        """
+        """Returns the max drawdown as a float"""
         return self.calculate_drawdown_series(series, method).max()
+
 
     def calculate_max_drawdown_with_metadata(
         self, series: pd.Series, 
@@ -237,6 +285,17 @@ class Metrics():
         }
 
     def calculate_log_max_drawdown_ratio(self, series: pd.Series) -> float:
+        """
+        Calculates the log return minus the log max drawdown ratio.
+
+        A higher value indicates better risk-adjusted return on a log scale.
+
+        Args:
+            series (pd.Series): Date-indexed price series.
+
+        Returns:
+            float: Log return minus log max drawdown.
+        """
         log_drawdown = self.calculate_max_drawdown(series, method='log')
         log_return = np.log(series.iloc[-1]) - np.log(series.iloc[0])
         return log_return - log_drawdown
@@ -294,7 +353,20 @@ class Metrics():
     def _get_linreg(
         return_series: pd.Series,
         benchmark_return_series: pd.Series
-    ) -> float:
+    ) -> LinearRegression:
+        """
+        Fits a linear regression of return_series against benchmark_return_series.
+
+        Used internally by calculate_beta, calculate_alpha, and calculate_r_squared.
+        Joins both series on their date index and drops NaN rows before fitting.
+
+        Args:
+            return_series (pd.Series): Named return series for the portfolio or stock.
+            benchmark_return_series (pd.Series): Named return series for the benchmark.
+
+        Returns:
+            LinearRegression: Fitted sklearn LinearRegression model.
+        """
         df = pd.concat([return_series, benchmark_return_series], sort=True, axis=1)
         df = df.dropna()
         clean_returns: pd.Series = df[return_series.name]
@@ -335,56 +407,38 @@ class Metrics():
         return reg.score(reshaped_return, reshaped_bench)
 
 
-# Indicators - creates class that calculates various 
-# market technical indicators that indicate at what stage in
-# a cycle the security may be in or how it is performing relative
-# its past or average performance.
-#
-# supported inidcators:
-#
-# momentum (MOM)
-# simple moving average (SMA)
-# triangular moving average (TMA)
-# weighted moving average (WMA)
-# exponential, double exponential, triple exponential moving average (EMA, DEM, TEMA)
-# Kaufman adaptive moving average (KAMA)
-# MESA adaptive moving average (MAMA)
-# typical price 
-# volume weighted average price (VWAP)
-# simple moving standard deviation 
-# moving average convergence divergence oscillator (MACD)
-# stochastic oscillator (STOCH)
-# relative strength index (RSI)
-# stochastic RSI
-# williams %r 
-# average true range (ATR)
-# plus, minus directional movement
-# plus, minus directional index
-# average directional indes (ADX)
-# directional index (DI)
-# ADX ratio (ADXR)
-# percentage price index (PPI)
-# balance of power (BOP)
-# commodity channel index (CCI)
-# Chande oscillator
-# rate of change (ROC)
-# Aroon up, down, oscillator 
-# Bollinger bands (BBANDS)
-# money flow index (MFI)
-# money flow volume (MFV)
-# Chaikin money flow (CMF)
-# ROC of TEMA (TRIX)
-# ultimate oscillator
-# midpoint (MID)
-# on-balance volume (OBV)
-
-
-
 class Indicators(Metrics):
+    """
+    Technical indicator calculator. Inherits all performance metrics from Metrics.
+
+    Supported indicators:
+        Moving averages: SMA, TMA, WMA, EMA, DEMA, TEMA, KAMA
+        Oscillators: MACD, Stochastic, RSI, Stochastic RSI, Williams %R, CCI,
+                     Chande, ROC, Aroon (up/down/oscillator), Ultimate Oscillator
+        Volatility: Bollinger Bands, ATR
+        Directional: Plus/Minus DM, Plus/Minus DI, DX, ADX, ADXR
+        Volume-based: VWAP, MFI, CMF, OBV, Money Flow Volume
+        Other: Momentum, Typical Price, PPO, Balance of Power, Midpoint, TRIX
+    """
+
     def __init__(self):
+        """
+        Initializes Indicators, calling Metrics.__init__ via super().
+        """
         super().__init__()
-    
-    def get_ma_from_string(self, string):
+
+    def get_ma_from_string(self, string: str) -> Callable:
+        """
+        Returns the moving average method corresponding to the given string identifier.
+
+        Defaults to SMA if the provided string is not recognized.
+
+        Args:
+            string (str): Moving average type. One of: "SMA", "TMA", "WMA", "EMA", "DEMA", "TEMA".
+
+        Returns:
+            Callable: The bound calculate_* method for the specified moving average type.
+        """
         compatible = [
             "SMA","TMA","WMA",
             "EMA","DEMA", "TEMA"
@@ -463,9 +517,9 @@ class Indicators(Metrics):
         return tema
 
     def calculate_KAMA(
-        self, series: pd.Series, n: int=10, 
-        fast_lookback:int=5, slow_lookback: int=30
-    ):
+        self, series: pd.Series, n: int=10,
+        fast_lookback: int=5, slow_lookback: int=30
+    ) -> pd.Series:
         """
         Calculates Kaufmans adaptive moving average
         """
@@ -777,10 +831,20 @@ class Indicators(Metrics):
 
     class AroonHelper():
         """
-        Class to help calculate aroon indicator due to issues
-        with pandas.series
+        Helper class for Aroon indicator calculation.
+
+        Handles rolling-window extrema tracking, which is awkward to express
+        cleanly with standard pandas Series operations.
         """
+
         def __init__(self, series: pd.Series, n: int=25):
+            """
+            Initializes AroonHelper with a price series and lookback period.
+
+            Args:
+                series (pd.Series): Date-indexed price series.
+                n (int): Lookback period in days. Defaults to 25.
+            """
             self.series = series
             self._series_length = series.shape[0]
             self.index = series.index
@@ -969,7 +1033,21 @@ class Indicators(Metrics):
         return trix
     
     class UltOscHelper():
-        def __init__(self, ma_function):
+        """
+        Helper class for Ultimate Oscillator calculation.
+
+        Encapsulates the per-period 'a' (buying pressure) and 'b' (true range)
+        computations used in the Ultimate Oscillator formula.
+        """
+
+        def __init__(self, ma_function: Callable):
+            """
+            Initializes UltOscHelper with a moving average function.
+
+            Args:
+                ma_function (Callable): Moving average function used in a/b calculations
+                                        (e.g., Indicators.calculate_SMA).
+            """
             self.ma_func = ma_function
         
         def find_next_a(self) -> str:
@@ -987,9 +1065,18 @@ class Indicators(Metrics):
             new_key = "a" + num
             return new_key
 
-        def calculate_a(self, df: pd.DataFrame, n: int):
+        def calculate_a(self, df: pd.DataFrame, n: int) -> pd.Series:
             """
-            a = n period sma of (close - true_low) * n
+            Calculates the buying pressure component (a) for the Ultimate Oscillator.
+
+            a = n-period moving average of (close - true_low)
+
+            Args:
+                df (pd.DataFrame): OHLCV price DataFrame.
+                n (int): Lookback period.
+
+            Returns:
+                pd.Series: Buying pressure series.
             """
             low1 = df.close.shift(1)
             low2 = df.low 
@@ -998,9 +1085,18 @@ class Indicators(Metrics):
             a = self.ma_func(interior, n)
             return a
             
-        def calculate_b(self, df: pd.DataFrame, n: int):
+        def calculate_b(self, df: pd.DataFrame, n: int) -> pd.Series:
             """
-            b = n period sma of true range
+            Calculates the true range component (b) for the Ultimate Oscillator.
+
+            b = n-period moving average of the true range
+
+            Args:
+                df (pd.DataFrame): OHLCV price DataFrame.
+                n (int): Lookback period.
+
+            Returns:
+                pd.Series: True range moving average series.
             """
             trmax = pd.concat([df.high, df.close.shift(1)], axis=1)
             trmin = pd.concat([df.low, df.close.shift(1)], axis=1)
@@ -1066,13 +1162,20 @@ class Indicators(Metrics):
         return pd.Series(obv, index=index)
 
 
-# Signals - class that inherits from indicators and creates buy and sell
-# signals based on the indicators
-# all indicators listed in comment Indicators class are supported
-
-
 class Signals(Indicators):
+    """
+    Trading signal generators built on all Indicators.
+
+    Produces buy/sell signal Series where 1 = buy, -1 = sell, 0 = hold.
+    Signals are derived from indicator crossovers, zero-crossings, and
+    range-exceeding logic. All indicators from Indicators are available
+    as signal sources.
+    """
+
     def __init__(self):
+        """
+        Initializes Signals, calling Indicators.__init__ via super().
+        """
         super().__init__()
     
     @staticmethod
@@ -1307,9 +1410,19 @@ class Signals(Indicators):
         price_series: pd.Series=pd.Series(),
         indicator_series: pd.Series=pd.Series(),
         signal_series: pd.Series=pd.Series(),
-        combine_price_and_indicator: bool = True 
-        ):
-        """Uses pyplot to show a simple graph of the indicator"""
+        combine_price_and_indicator: bool=True
+    ) -> None:
+        """
+        Displays a pyplot graph of a price series, indicator, and/or signal series.
+
+        Args:
+            price_series (pd.Series): Date-indexed price series.
+            indicator_series (pd.Series): Date-indexed indicator series.
+            signal_series (pd.Series): Date-indexed signal series (1/-1/0).
+            combine_price_and_indicator (bool): If True, overlays price and indicator
+                on one subplot with signals below. Raises AssertionError if price and
+                indicator are not both provided when True.
+        """
         sets = [price_series, indicator_series, signal_series]
         empty_series = [not series.empty for series in sets]
         empty_series_count = empty_series.count(True)
