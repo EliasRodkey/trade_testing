@@ -65,7 +65,6 @@ Data flows through four sequential stages:
 This project was built to learn — it works, but has known limitations:
 
 - **No live trading support.** This is strictly a backtesting tool; it has no broker integration or real-time data feeds.
-- **Test data is not included.** Historical EOD CSV files must be sourced and added manually (see Setup below). Only the S&P 500 (SPY) benchmark file structure is referenced in code.
 - **No configuration system.** Parameters are set directly in code rather than via config files or CLI arguments.
 - **Optimization is CPU-bound.** Grid search can be slow for large parameter spaces; the multiprocessing support is basic and has not been heavily optimized.
 - **No walk-forward or out-of-sample validation.** Results are in-sample only and are susceptible to overfitting.
@@ -89,12 +88,6 @@ This project was built to learn — it works, but has known limitations:
 pip install -r requirements.txt
 ```
 
-**Add historical price data:**
-
-Place EOD CSV files in `StrategyTesting/test_data/eod/`, one file per ticker (e.g. `AAPL.csv`). Files must have columns: `date, open, high, low, close, volume` with `date` as the index.
-
-Place the S&P 500 benchmark file at `StrategyTesting/test_data/SPY.csv` in the same format.
-
 **Run a simulation:**
 ```bash
 cd StrategyTesting
@@ -108,3 +101,29 @@ Each module also has runnable example code under its `if __name__ == "__main__":
 ## Project Status
 
 This is an intermediate personal project built while learning Python and algorithmic trading. It is functional, but is not production-ready. Contributions and feedback are welcome.
+
+---
+
+## Future Direction
+
+There are a number of improvements that could be applied to this project to make it more useful and practical in the future
+
+**1. Simulation UI**
+
+Adding an interface to allow more dynamic simulation parameter editing would increase the usability and overall usefulness of this project
+
+**2. Automated Results Sorting**
+
+Each simulation generates a large amount of information and metadata about the performance of each strategy. 
+A system that can pool results togther to show their performance relative to one another or can automatically locate the strategies that have performed the best 
+would save hours of combing through individual results to determine which strategy is the most viable.
+
+**3. Forward Testing**
+
+This system tests the strategies on historical EOD stock data. It is theoretically possible that the best strategies could perform well due to a form of overfitting and 
+may not necessarily do well now in the real world. Either some data should be set aside for verification or the strategy should be deployed using paper testing to see
+Whether or not the results hold up.
+
+**4. Automated Trade Placement**
+
+Once a strategy has been selected and the selection process refined, empowering agentic trading bots using Alpaca to place trades autonamously is a logical next step.
