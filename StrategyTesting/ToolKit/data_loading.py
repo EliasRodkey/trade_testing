@@ -16,9 +16,9 @@ Functions:
     merge_ungrouped_files: Interactive workflow that merges all unmerged result CSVs with user confirmation.
 
 Module-level variables:
-    EOD_DATA_DIR  -- Path to the directory containing per-ticker EOD CSV files.
-    SPY_PATH      -- Path to the SPY benchmark CSV file.
-    RESULTS_PATH  -- Path to the optimization results output directory.
+    EOD_DATA_DIR: Path to the directory containing per-ticker EOD CSV files.
+    SPY_PATH: Path to the SPY benchmark CSV file.
+    RESULTS_PATH: Path to the optimization results output directory.
 """
 
 import os

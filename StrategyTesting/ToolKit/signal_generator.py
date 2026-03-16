@@ -1263,15 +1263,6 @@ class Signals(Indicators):
         signals = self.create_indicator_crossover_signals(series, ma)
         signals.name = "Moving Average Signals"
         return signals
-    
-    def create__signals(self, series: pd.Series, n: int=14) -> pd.Series:
-        """
-        Creates signals based on the 
-        """
-        mom = self.calculate_momentum(series, n)
-        signals = self.create_zero_crossing_signals(mom)
-        signals.name = " Signals"
-        return signals
         
     # MESA adaptive moving average (MAMA)
     # average true range (ATR)
