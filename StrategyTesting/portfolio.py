@@ -198,7 +198,7 @@ class Position(object):
             "entry_price": [self.entry_price],
             "exit_price": [self.exit_price],
             "price_change": [self.change_in_price],
-            "entry_vlaue": [self.entry_value],
+            "entry_value": [self.entry_value],
             "exit_value": [self.exit_value],
             "value_change": [self.change_in_value],
             "percent_return": [self.percent_return],

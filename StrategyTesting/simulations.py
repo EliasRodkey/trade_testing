@@ -58,6 +58,7 @@ def simulate_simset(
     Returns:
         GridSearchOptimizer: The optimizer instance from the final simulation run.
     """
+    optimizer = None
     for ma_type in ma_types:
         for maxpos in maxpos_range:
             simclass = BoundSimulators(

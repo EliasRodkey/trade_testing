@@ -256,7 +256,7 @@ class Metrics():
         local_peak_date = peak_date = trough_date = series.index[0]
         local_peak_price = peak_price = trough_price = series.iloc[0]
 
-        for date, price in series.iteritems():
+        for date, price in series.items():
 
             # Keep track of the rolling max
             if price > local_peak_price:
@@ -401,10 +401,11 @@ class Metrics():
         Calculates the r^2 of a portfolio or stock return series
         versus a benchmark
         """
-        reshaped_return = np.arange(0, return_series.shape[0]).reshape(-1, 1)
-        reshaped_bench = np.arange(0, benchmark_return_series.shape[0]).reshape(-1, 1)
+        df = pd.concat([return_series, benchmark_return_series], sort=True, axis=1).dropna()
+        clean_returns = df[return_series.name]
+        clean_benchmarks = pd.DataFrame(df[benchmark_return_series.name])
         reg = self._get_linreg(return_series, benchmark_return_series)
-        return reg.score(reshaped_return, reshaped_bench)
+        return reg.score(clean_benchmarks, clean_returns)
 
 
 class Indicators(Metrics):
@@ -775,8 +776,8 @@ class Indicators(Metrics):
         9 day ema - 26 day ema
         divided by 26 day ema
         """
-        nine_day = self.calculate_exponential_moving_average(series, 9)
-        long_ema = self.calculate_exponential_moving_average(series, 26)
+        nine_day = self.calculate_EMA(series, 9)
+        long_ema = self.calculate_EMA(series, 26)
         ppo = (nine_day - long_ema) / long_ema
         ppo.name = "Percentage Price Oscillator"
         return ppo

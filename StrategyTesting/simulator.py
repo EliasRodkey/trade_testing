@@ -410,7 +410,7 @@ class BoundSimulators():
         """
         if self.contains_ma_type:
             signal = self.prices.apply(self.signal_func, args=signal_args, ma_type=self.ma_type, axis=0)
-            if not self.signal_id == self.ma_type + self.signal_id:
+            if not self.signal_id.startswith(self.ma_type):
                 self.signal_id = self.ma_type + self.signal_id
         else:
             signal = self.prices.apply(self.signal_func, args=signal_args, axis=0)

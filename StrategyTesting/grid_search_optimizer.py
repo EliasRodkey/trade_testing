@@ -189,7 +189,6 @@ class GridSearchOptimizer(object):
             sim, results = self.simulate(signal_params, preference_params)
             if i == 0:
                 self.sim = sim
-                self.ID
             self.make_metadata_dict(self.sim)
             self.add_results(parameters, results, self._metadata)
             returns.append(results.percent_return.iloc[0])

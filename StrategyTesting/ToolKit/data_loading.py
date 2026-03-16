@@ -234,8 +234,9 @@ def merge_ungrouped_files(delete_old: bool=False) -> None:
     """
     for filename_path, file_list in unmerged_files_dict().items():
         display_files_to_merge(file_list)
+        verified = False
         if not file_list == []:
-            verified = verify_merge() 
+            verified = verify_merge()
         if verified:
             execute_file_merge(filename_path, file_list, delete_old)
         else:
