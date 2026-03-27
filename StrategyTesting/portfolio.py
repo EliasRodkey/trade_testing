@@ -1,11 +1,16 @@
 #! python3
-# 
-# tool_kit.py contains functions associated with calculating
-# metrics and indicators of a set of chronical financial price data
-# as well as classes used in creating a financial market simulation 
-# to test trading strategies (also called backtesting) and evaluate
-# performance 
+"""
+portfolio.py - Position tracking and portfolio performance evaluation for backtesting.
 
+Classes:
+    Position: Tracks a single long trade: entry, exit, price history, and return metrics.
+    PortfolioHistory: Aggregates closed positions and computes equity curves and performance metrics.
+
+Module-level variables:
+    Symbol: NewType alias for str representing a ticker symbol.
+    Dollars: NewType alias for float representing a dollar value.
+    DATE_FORMAT_STR: Format string used for pretty-printing dates.
+"""
 from typing import Dict, NewType, Any, List, Set
 from collections import OrderedDict, defaultdict
 import matplotlib.pyplot as plt
@@ -15,24 +20,22 @@ from ToolKit.signal_generator import Metrics
 from ToolKit.data_loading import load_SPY_data, load_data_as_pd
 
 
-# Position contains the class
-# which monitors and records raw data about
-# a single transactions during the simulation
-#
-# data recorded:
-# entry and exit date
-# entry and exit price
-# equity value on each day during the trade
-# percent change
-# $ increase/decrease
-# summary display
-
 Symbol = NewType('Symbol', str)
 Dollars = NewType('Dollars', float)
 
 DATE_FORMAT_STR = '%a %b %d, %Y'
-def _pdate(date: pd.Timestamp):
-    """Pretty-print a datetime with just the date"""
+
+
+def _pdate(date: pd.Timestamp) -> str:
+    """
+    Formats a timestamp as a human-readable date string.
+
+    Args:
+        date (pd.Timestamp): The date to format.
+
+    Returns:
+        str: Date string formatted as 'Day Mon DD, YYYY' (e.g., 'Mon Jan 01, 2020').
+    """
     return date.strftime(DATE_FORMAT_STR)
 
 
@@ -47,10 +50,16 @@ class Position(object):
     method is a sell operation.
     """
 
-    def __init__(self, symbol: Symbol, entry_date: pd.Timestamp, 
-        entry_price: Dollars, shares: int):
+    def __init__(self, symbol: Symbol, entry_date: pd.Timestamp,
+                 entry_price: Dollars, shares: int):
         """
-        Equivelent to buying a certain number of shares of the asset
+        Opens a new position, equivalent to a buy operation.
+
+        Args:
+            symbol (Symbol): Ticker symbol of the asset.
+            entry_date (pd.Timestamp): Date the position was opened.
+            entry_price (Dollars): Price per share at entry (after slippage).
+            shares (int): Number of shares purchased. Fractional shares are allowed.
         """
 
         # Recorded on initialization
@@ -75,9 +84,17 @@ class Position(object):
         self._price_series: pd.Series = None
         self._needs_update_pd_series: bool = True
 
-    def exit(self, exit_date, exit_price):
+    def exit(self, exit_date: pd.Timestamp, exit_price: Dollars) -> None:
         """
-        Equivelent to selling a stock holding
+        Closes the position, equivalent to a sell operation.
+
+        Args:
+            exit_date (pd.Timestamp): Date the position was closed.
+            exit_price (Dollars): Price per share at exit.
+
+        Raises:
+            AssertionError: If exit_date equals entry_date (same-day churn).
+            AssertionError: If the position is already closed.
         """
         assert self.entry_date != exit_date, 'Churned a position same-day.'
         assert not self.exit_date, 'Position already closed.'
@@ -86,9 +103,13 @@ class Position(object):
         self.exit_price = exit_price
         self.value_series = self._generate_value_series()
 
-    def record_price_update(self, date, price):
+    def record_price_update(self, date: pd.Timestamp, price: Dollars) -> None:
         """
-        Stateless function to record intermediate prices of existing positions
+        Records an intermediate price update for an open position.
+
+        Args:
+            date (pd.Timestamp): The date of the price update.
+            price (Dollars): The current price of the asset.
         """
         self.last_date = date
         self.last_price = price
@@ -109,14 +130,17 @@ class Position(object):
 
     @property
     def last_value(self) -> Dollars:
+        """Current market value of the position (last recorded price × shares)."""
         return self.last_price * self.shares
 
     @property
     def is_active(self) -> bool:
+        """True if the position has not yet been closed."""
         return self.exit_date is None
 
     @property
     def is_closed(self) -> bool:
+        """True if the position has been exited."""
         return not self.is_active
     
     def _generate_value_series(self) -> pd.Series:
@@ -129,30 +153,43 @@ class Position(object):
 
     @property
     def percent_return(self) -> float:
+        """Percent return of the trade as a decimal (e.g., 0.05 for 5% gain)."""
         return (self.exit_price / self.entry_price) - 1
-    
+
     @property
     def entry_value(self) -> Dollars:
+        """Total dollar value of the position at entry (entry_price × shares)."""
         return self.shares * self.entry_price
 
     @property
     def exit_value(self) -> Dollars:
+        """Total dollar value of the position at exit (exit_price × shares)."""
         return self.shares * self.exit_price
 
     @property
     def change_in_value(self) -> Dollars:
+        """Dollar change in position value from entry to exit."""
         return self.exit_value - self.entry_value
-    
+
     @property
     def change_in_price(self) -> Dollars:
+        """Dollar change in price per share from entry to exit."""
         return self.exit_price - self.entry_price
 
     @property
-    def trade_length(self):
+    def trade_length(self) -> int:
+        """Number of days the position was held (excluding exit day)."""
         return len(self._dict_series) - 1
-    
+
     @property
-    def trade_summary(self):
+    def trade_summary(self) -> pd.DataFrame:
+        """
+        Returns a single-row DataFrame summarizing this trade.
+
+        Returns:
+            pd.DataFrame: Row containing symbol, dates, prices, value changes,
+                          percent return, trade length, and position hash.
+        """
         to_df = {
             "symbol": [self.symbol],
             "entry_date": [self.entry_date],
@@ -161,7 +198,7 @@ class Position(object):
             "entry_price": [self.entry_price],
             "exit_price": [self.exit_price],
             "price_change": [self.change_in_price],
-            "entry_vlaue": [self.entry_value],
+            "entry_value": [self.entry_value],
             "exit_value": [self.exit_value],
             "value_change": [self.change_in_value],
             "percent_return": [self.percent_return],
@@ -169,7 +206,8 @@ class Position(object):
         }
         return pd.DataFrame(to_df)
     
-    def print_position_summary(self):
+    def print_position_summary(self) -> None:
+        """Prints a formatted summary of this trade to stdout."""
         _entry_date = _pdate(self.entry_date)
         _exit_date = _pdate(self.exit_date)
         _days = self.trade_length
@@ -198,19 +236,19 @@ class Position(object):
         return hash((self.entry_date, self.symbol))
 
 
-# PortfolioHistory supports fully finished position objects being added to it
-# once the .finish() method is called it uses position data to calculate an
-# equity curve and a series of metrics associated with the data
-# using the metrics class.
-
-
 class PortfolioHistory(object):
     """
-    Holds Position objects and keeps track of portfolio variables.
-    Produces summary statistics.
+    Aggregates closed Position objects and computes portfolio-level performance.
+
+    Call finish() after all positions are added to compute the equity curve and
+    unlock all metric properties. Metrics are computed lazily via properties once
+    finish() has been called.
     """
 
     def __init__(self):
+        """
+        Initializes an empty portfolio history ready to accept positions.
+        """
         # initialize metrics instance
         self.metrics = Metrics()
         # Keep track of positions, recorded in this list after close
@@ -226,7 +264,17 @@ class PortfolioHistory(object):
         self._spy: pd.DataFrame = pd.DataFrame()
         self._spy_log_returns: pd.Series = pd.Series(dtype=float)
 
-    def add_to_history(self, position: Position):
+    def add_to_history(self, position: Position) -> None:
+        """
+        Records a closed position into portfolio history.
+
+        Args:
+            position (Position): A fully closed Position object.
+
+        Raises:
+            AssertionError: If the same position is added twice.
+            AssertionError: If the position is still open.
+        """
         _log = self._logged_positions
         assert not position in _log, 'Recorded the same position twice.'
         assert position.is_closed, 'Position is not closed.'
@@ -234,12 +282,28 @@ class PortfolioHistory(object):
         self.position_history.append(position)
         self.last_date = max(self.last_date, position.last_date)
 
-    def record_cash(self, date, cash):
+    def record_cash(self, date: pd.Timestamp, cash: Dollars) -> None:
+        """
+        Records the cash balance at a given date.
+
+        Args:
+            date (pd.Timestamp): The date of the cash recording.
+            cash (Dollars): Cash balance at that date.
+        """
         self._cash_history[date] = cash
         self.last_date = max(self.last_date, date)
 
     @staticmethod
     def _as_oseries(d: Dict[pd.Timestamp, Any]) -> pd.Series:
+        """
+        Converts a date-keyed dictionary to a sorted pd.Series.
+
+        Args:
+            d (Dict[pd.Timestamp, Any]): Dictionary with Timestamp keys.
+
+        Returns:
+            pd.Series: Series sorted by date index.
+        """
         return pd.Series(d).sort_index()
 
     def _generate_trade_summary_df(self) -> pd.DataFrame:
@@ -256,14 +320,17 @@ class PortfolioHistory(object):
             ]
             self.trade_summary_df = pd.DataFrame(columns=cols)
             
-    def _compute_cash_series(self):
+    def _compute_cash_series(self) -> None:
+        """Builds the cash balance series from recorded cash history."""
         self._cash_series = self._as_oseries(self._cash_history)
 
     @property
     def cash_series(self) -> pd.Series:
+        """Date-indexed series of cash balance over the simulation period."""
         return self._cash_series
 
-    def _compute_portfolio_value_series(self):
+    def _compute_portfolio_value_series(self) -> None:
+        """Builds the total asset value series by summing all position value series."""
         value_by_date = defaultdict(float)
         last_date = self.last_date
 
@@ -279,10 +346,12 @@ class PortfolioHistory(object):
         self._portfolio_value_series = self._as_oseries(value_by_date)
 
     @property
-    def portfolio_value_series(self):
+    def portfolio_value_series(self) -> pd.Series:
+        """Date-indexed series of total held asset value (excluding cash)."""
         return self._portfolio_value_series
 
-    def _compute_equity_series(self):
+    def _compute_equity_series(self) -> None:
+        """Builds the equity series as cash + portfolio value, filtering out zero or negative values."""
         c_series = self.cash_series
         p_series = self.portfolio_value_series
         assert all(c_series.index == p_series.index), \
@@ -291,29 +360,42 @@ class PortfolioHistory(object):
         self._equity_series = raw_series[raw_series > 0]
 
     @property
-    def equity_series(self):
+    def equity_series(self) -> pd.Series:
+        """Date-indexed series of total portfolio equity (cash + asset value)."""
         return self._equity_series
-    
+
     @property
-    def days_traded(self):
+    def days_traded(self) -> int:
+        """Number of trading days in the equity series."""
         return self.equity_series.shape[0]
 
-    def _compute_log_return_series(self):
+    def _compute_log_return_series(self) -> None:
+        """Builds the log return series from the equity series."""
         self._log_return_series = \
             Metrics.calculate_log_return_series(self.equity_series)
 
     @property
-    def log_return_series(self):
+    def log_return_series(self) -> pd.Series:
+        """Date-indexed series of log returns of the equity curve."""
         return self._log_return_series
 
-    def _assert_finished(self):
+    def _assert_finished(self) -> None:
+        """
+        Asserts that finish() has been called before accessing computed properties.
+
+        Raises:
+            AssertionError: If finish() has not yet been called.
+        """
         assert self._simulation_finished, \
             'Simuation must be finished by running self.finish() in order ' + \
             'to access this method or property.'
 
-    def finish(self):
+    def finish(self) -> None:
         """
-        Notate that the simulation is finished and compute readonly values
+        Marks the simulation as complete and computes all derived series.
+
+        Must be called before accessing any metric properties or plot methods.
+        Computes cash, portfolio value, equity, and log return series in sequence.
         """
         self._simulation_finished = True
         self._generate_trade_summary_df()
@@ -328,6 +410,12 @@ class PortfolioHistory(object):
         self._assert_finished()
 
     def compute_portfolio_size_series(self) -> pd.Series:
+        """
+        Returns a date-indexed series of the number of open positions on each day.
+
+        Returns:
+            pd.Series: Integer count of active positions per trading day.
+        """
         size_by_date = defaultdict(int)
         for position in self.position_history:
             for date in position.value_series.index:
@@ -336,12 +424,14 @@ class PortfolioHistory(object):
 
     @property
     def spy(self) -> pd.DataFrame:
+        """Lazily loads and returns the S&P 500 (SPY) OHLCV DataFrame."""
         if self._spy.empty:
             self._spy = load_SPY_data()
         return self._spy
 
     @property
     def spy_log_returns(self) -> pd.Series:
+        """Lazily computes and returns the log return series for SPY close prices."""
         if self._spy_log_returns.empty:
             close = self.spy['close']
             self._spy_log_returns =  self.metrics.calculate_log_return_series(close)
@@ -417,36 +507,44 @@ class PortfolioHistory(object):
         )
 
     @property
-    def dollar_max_drawdown(self):
+    def dollar_max_drawdown(self) -> float:
+        """Maximum drawdown of the equity curve measured in dollars."""
         return self.metrics.calculate_max_drawdown(self.equity_series, 'dollar')
 
     @property
-    def percent_max_drawdown(self):
+    def percent_max_drawdown(self) -> float:
+        """Maximum drawdown of the equity curve measured as a percent decimal."""
         return self.metrics.calculate_max_drawdown(self.equity_series, 'percent')
 
     @property
-    def log_max_drawdown_ratio(self):
+    def log_max_drawdown_ratio(self) -> float:
+        """Log return minus log max drawdown — a log-scale risk-adjusted return measure."""
         return self.metrics.calculate_log_max_drawdown_ratio(self.equity_series)
-    
+
     @property
-    def number_of_trades(self):
+    def number_of_trades(self) -> int:
+        """Total number of completed trades in the simulation."""
         return len(self.position_history)
-    
+
     @property
-    def avg_trades_per_day(self):
+    def avg_trades_per_day(self) -> float:
+        """Average number of trades completed per trading day."""
         return self.number_of_trades / self.days_traded
 
     @property
-    def average_active_trades(self):
+    def average_active_trades(self) -> float:
+        """Average number of simultaneously open positions across the simulation."""
         return self.compute_portfolio_size_series().mean()
 
     @property
-    def final_cash(self):
+    def final_cash(self) -> Dollars:
+        """Cash balance at the end of the simulation."""
         self._assert_finished()
         return self.cash_series[-1]
-    
+
     @property
-    def final_equity(self):
+    def final_equity(self) -> Dollars:
+        """Total equity (cash + asset value) at the end of the simulation."""
         self._assert_finished()
         return self.equity_series[-1]
 
@@ -583,11 +681,13 @@ class PortfolioHistory(object):
         # to_df = {prop: [self.__dict__[prop]] for prop in props} #doesn't work because properties havent been called yet
         return pd.DataFrame(to_df)
 
-    def print_position_summaries(self):
+    def print_position_summaries(self) -> None:
+        """Prints a formatted summary for each position in the portfolio history."""
         for position in self.position_history:
             position.print_position_summary()
 
-    def print_summary(self):
+    def print_summary(self) -> None:
+        """Prints a full performance summary of the portfolio to stdout."""
         self._assert_finished()
         s = f'Equity: ${self.final_equity:.2f}\n' \
             f'Percent Return: {100*self.percent_return:.2f}%\n' \
@@ -613,9 +713,15 @@ class PortfolioHistory(object):
 
         print(s)
 
-    def plot(self, show=True):
+    def plot(self, show: bool=True) -> plt.Figure:
         """
-        Plots equity, cash and portfolio value curves.
+        Plots equity, cash, and portfolio value curves as three subplots.
+
+        Args:
+            show (bool): If True, calls plt.show() to display the figure. Defaults to True.
+
+        Returns:
+            plt.Figure: The matplotlib Figure object containing the three subplots.
         """
         self._assert_finished()
 
@@ -638,9 +744,17 @@ class PortfolioHistory(object):
 
         return figure
 
-    def plot_benchmark_comparison(self, show=True) -> plt.Figure:
+    def plot_benchmark_comparison(self, show: bool=True) -> plt.Figure:
         """
-        Plot comparable investment in the S&P 500.
+        Plots the portfolio equity curve against a scaled S&P 500 benchmark.
+
+        Scales SPY to the same starting cash value for a fair comparison.
+
+        Args:
+            show (bool): If True, calls plt.show() to display the figure. Defaults to True.
+
+        Returns:
+            plt.Figure: The matplotlib Figure object with the comparison chart.
         """
         self._assert_finished()
 
