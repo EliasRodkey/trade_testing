@@ -1,4 +1,4 @@
-# Trade Testing
+# Trade Algorithm Backtester
 
 An algorithmic trading backtester built to explore technical analysis and systematic strategy development in Python.
 
@@ -106,24 +106,20 @@ This is an intermediate personal project built while learning Python and algorit
 
 ## Future Direction
 
-There are a number of improvements that could be applied to this project to make it more useful and practical in the future
+A number of improvements have been considered for future application to this project to make it more practical and usable. Some possible additions are listed below:
 
 **1. Simulation UI**
 
-Adding an interface to allow more dynamic simulation parameter editing would increase the usability and overall usefulness of this project
+Adding a graphic user interface to allow dynamic simulation parameter assignment would increase the functionality and overall usefulness of this project. A programmatic interface could also be added to allow other applications or programs run simulations and utilize the results.
 
 **2. Automated Results Sorting**
 
-Each simulation generates a large amount of information and metadata about the performance of each strategy. 
-A system that can pool results togther to show their performance relative to one another or can automatically locate the strategies that have performed the best 
-would save hours of combing through individual results to determine which strategy is the most viable.
+Each simulation generates a large data file containing results and metadata about the performance of each strategy. These files are difficult to parse manually, especially if multiple strategies are being tested in bulk. A component that can compare test results from different strategies against one another and against a standard market performance would meaningfully increase the value of the project as a stock trading tool.
 
 **3. Forward Testing**
 
-This system tests the strategies on historical EOD stock data. It is theoretically possible that the best strategies could perform well due to a form of overfitting and 
-may not necessarily do well now in the real world. Either some data should be set aside for verification or the strategy should be deployed using paper testing to see
-Whether or not the results hold up.
+This system tests the strategies on historical EOD stock data. It is a possible that a loose form of overfitting could account for the performance of some strategies. This means some trading strategies may not work in the current market or reveal meaningful insights that can be used for making trades. Some data should be set aside for verification during testing, and there should also be a means to deploy a testing strategy using paper testing to see whether or not it is a viable approach.
 
 **4. Automated Trade Placement**
 
-Once a strategy has been selected and the selection process refined, empowering agentic trading bots using Alpaca to place trades autonamously is a logical next step.
+Once a strategy has been selected and the selection process refined, empowering agentic trading bots using Alpaca to place trades autonomously is a logical next step.
